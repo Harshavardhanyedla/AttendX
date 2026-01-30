@@ -5,12 +5,8 @@
             "destination": "/api/index.js"
         },
         {
-            "source": "/(.*)\\.(.*)",
-            "destination": "/frontend/dist/$1.$2"
-        },
-        {
-            "source": "/(.*)",
-            "destination": "/frontend/dist/index.html"
+            "source": "/((?!api|assets|favicon|index.html|.*\\.).*)",
+            "destination": "/index.html"
         }
     ],
     "outputDirectory": "frontend/dist"
