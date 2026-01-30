@@ -58,10 +58,10 @@ export default function CRDashboard() {
                 const studRes = await axios.get(`/api/attendance/students?date=${targetDate}&period=${period}`);
                 setStudents(studRes.data.students);
 
-                // Initialize state
+                // Initialize state: NULL instead of 'present' by default
                 const initial = {};
                 studRes.data.students.forEach(s => {
-                    initial[s.id] = s.status || 'present'; // Default to present
+                    initial[s.id] = s.status || null;
                 });
                 setAttendance(initial);
             } else {
@@ -81,34 +81,47 @@ export default function CRDashboard() {
         const todayIndex = today.getDay();
         const targetIndex = days.indexOf(dayName);
 
-        // We want the date of the 'dayName' in the *current week*? or just today?
-        // Let's assume CR marks for *Today* mostly. IF they pick a different day, maybe they are correcting *yesterday*?
-        // Let's just calculate difference.
         const diff = targetIndex - todayIndex;
         const date = new Date(today);
         date.setDate(today.getDate() + diff);
         return date.toISOString().split('T')[0];
     };
 
-    const toggle = (id) => {
+    const setStatus = (id, status) => {
         setAttendance(prev => ({
             ...prev,
-            [id]: prev[id] === 'present' ? 'absent' : 'present'
+            [id]: status
         }));
     };
 
     const submit = async () => {
         if (!session?.subject) return;
+
+        // Check if all students are marked
+        const unmarked = Object.values(attendance).filter(v => v === null).length;
+        if (unmarked > 0) {
+            if (!window.confirm(`${unmarked} students are not marked. Mark them as absent?`)) {
+                return;
+            }
+            // Auto-mark unmarked as absent
+            const updated = { ...attendance };
+            Object.keys(updated).forEach(id => {
+                if (updated[id] === null) updated[id] = 'absent';
+            });
+            setAttendance(updated);
+            // Continue with submission
+        }
+
         try {
             const records = Object.entries(attendance).map(([sid, status]) => ({
                 studentId: parseInt(sid),
-                status
+                status: status || 'absent' // Final safeguard
             }));
 
             const targetDate = getDateForDay(day);
 
             await axios.post('/api/attendance/mark', {
-                date: targetDate, // YYYY-MM-DD
+                date: targetDate,
                 period,
                 subject_id: session.subject.id,
                 records
@@ -175,25 +188,54 @@ export default function CRDashboard() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
                         {students.map(s => (
                             <div key={s.id}
-                                onClick={() => toggle(s.id)}
                                 style={{
                                     padding: '1rem',
                                     border: '1px solid #e5e7eb',
                                     borderRadius: '0.5rem',
-                                    cursor: 'pointer',
-                                    background: attendance[s.id] === 'present' ? '#ecfdf5' : '#fef2f2',
-                                    borderColor: attendance[s.id] === 'present' ? '#10b981' : '#ef4444'
+                                    background: attendance[s.id] === 'present' ? '#ecfdf5' : attendance[s.id] === 'absent' ? '#fef2f2' : '#ffffff',
+                                    borderColor: attendance[s.id] === 'present' ? '#10b981' : attendance[s.id] === 'absent' ? '#ef4444' : '#e5e7eb',
+                                    boxShadow: attendance[s.id] ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                    transition: 'all 0.2s'
                                 }}
                             >
                                 <div style={{ fontWeight: 'bold' }}>{s.roll_no}</div>
-                                <div>{s.name}</div>
-                                <div style={{
-                                    marginTop: '0.5rem',
-                                    fontSize: '0.8rem',
-                                    color: attendance[s.id] === 'present' ? 'green' : 'red',
-                                    fontWeight: 'bold'
-                                }}>
-                                    {attendance[s.id]?.toUpperCase()}
+                                <div style={{ fontSize: '0.9rem', color: '#374151', minHeight: '2.5rem' }}>{s.name}</div>
+
+                                <div className="flex gap-2" style={{ marginTop: '0.5rem' }}>
+                                    <button
+                                        onClick={() => setStatus(s.id, 'present')}
+                                        style={{
+                                            flex: 1,
+                                            padding: '0.4rem',
+                                            borderRadius: '0.25rem',
+                                            fontSize: '0.7rem',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer',
+                                            background: attendance[s.id] === 'present' ? '#10b981' : '#f3f4f6',
+                                            color: attendance[s.id] === 'present' ? 'white' : '#4b5563',
+                                            border: '1px solid',
+                                            borderColor: attendance[s.id] === 'present' ? '#059669' : '#d1d5db'
+                                        }}
+                                    >
+                                        PRESENT
+                                    </button>
+                                    <button
+                                        onClick={() => setStatus(s.id, 'absent')}
+                                        style={{
+                                            flex: 1,
+                                            padding: '0.4rem',
+                                            borderRadius: '0.25rem',
+                                            fontSize: '0.7rem',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer',
+                                            background: attendance[s.id] === 'absent' ? '#ef4444' : '#f3f4f6',
+                                            color: attendance[s.id] === 'absent' ? 'white' : '#4b5563',
+                                            border: '1px solid',
+                                            borderColor: attendance[s.id] === 'absent' ? '#dc2626' : '#d1d5db'
+                                        }}
+                                    >
+                                        ABSENT
+                                    </button>
                                 </div>
                             </div>
                         ))}
