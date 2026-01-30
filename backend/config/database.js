@@ -10,8 +10,8 @@ async function initializeDatabase() {
     try {
         console.log('Initializing Database with SQL.js...');
         const SQL = await initSqlJs({
-            // Use CDN for WASM to ensure it works on Vercel
-            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+            // Use local WASM file for reliability on Vercel
+            locateFile: file => path.join(__dirname, file)
         });
 
         if (fs.existsSync(dbPath)) {
