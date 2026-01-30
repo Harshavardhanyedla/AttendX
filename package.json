@@ -1,0 +1,11 @@
+{
+    "name": "classtrack-root",
+    "private": true,
+    "scripts": {
+        "postinstall": "cd backend && npm install && cd ../frontend && npm install",
+        "build": "cd frontend && npm run build"
+    },
+    "engines": {
+        "node": "18.x"
+    }
+}
