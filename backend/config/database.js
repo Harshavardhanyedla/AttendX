@@ -7,35 +7,33 @@ let db = null;
 
 async function initializeDatabase() {
     if (db) return db;
+    console.log('Initializing Database...');
     const SQL = await initSqlJs();
     if (fs.existsSync(dbPath)) {
+        console.log('Loading existing database from:', dbPath);
         db = new SQL.Database(fs.readFileSync(dbPath));
     } else {
+        console.log('Creating new in-memory database');
         db = new SQL.Database();
         initializeSchema();
     }
 
-    // Aggressive Auto-seed check
+    // Diagnostic user check
     try {
-        const adminFound = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
-        if (!adminFound) {
-            console.log('Admin user missing, triggering auto-seed...');
+        const res = db.exec("SELECT count(*) as count FROM users");
+        const count = (res.length > 0 && res[0].values.length > 0) ? res[0].values[0][0] : 0;
+        console.log(`Diagnostic: Found ${count} users.`);
+        if (count === 0) {
+            console.log('Seeding missing users...');
             const { seed } = require('../seed/seedData');
             await seed();
-        } else {
-            console.log('Database initialized with admin user found.');
         }
     } catch (err) {
-        console.warn('Auto-seed check failed (table might be missing), initializing schema and seeding...');
+        console.warn('Initial user check failed, re-initializing...', err.message);
         initializeSchema();
-        try {
-            const { seed } = require('../seed/seedData');
-            await seed();
-        } catch (seedErr) {
-            console.error('Final seeding fallback failed:', seedErr.message);
-        }
+        const { seed } = require('../seed/seedData');
+        await seed();
     }
-
     return db;
 }
 
@@ -61,20 +59,32 @@ function initializeSchema() {
 }
 
 const dbHelpers = {
-    prepare: (sql) => ({
-        run: (...args) => { db.run(sql, args); saveDatabase(); },
+    prepare: (sqlQuery) => ({
+        run: (...args) => {
+            db.run(sqlQuery, args);
+            saveDatabase();
+        },
         get: (...args) => {
-            const stmt = db.prepare(sql); stmt.bind(args);
+            const stmt = db.prepare(sqlQuery);
+            if (args.length > 0) stmt.bind(args);
             const res = stmt.step() ? stmt.getAsObject() : undefined;
-            stmt.free(); return res;
+            stmt.free();
+            return res;
         },
         all: (...args) => {
-            const stmt = db.prepare(sql); stmt.bind(args);
-            const res = []; while (stmt.step()) res.push(stmt.getAsObject());
-            stmt.free(); return res;
+            const stmt = db.prepare(sqlQuery);
+            if (args.length > 0) stmt.bind(args);
+            const res = [];
+            while (stmt.step()) res.push(stmt.getAsObject());
+            stmt.free();
+            return res;
         }
     }),
-    exec: (sql) => { db.run(sql); saveDatabase(); }
+    exec: (sqlQuery) => {
+        const res = db.exec(sqlQuery);
+        saveDatabase();
+        return res;
+    }
 };
 
 module.exports = { initializeDatabase, saveDatabase, getDb: () => dbHelpers };
