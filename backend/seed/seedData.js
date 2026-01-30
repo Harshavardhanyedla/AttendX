@@ -19,14 +19,13 @@ async function seed() {
     console.log('Users seeded.');
 
     // 3. Subjects (From Timetable)
-    // Extracting unique subjects from the prompt
     const subjects = [
         { code: 'SANS', name: 'Sanskrit' },
         { code: 'AI-T', name: 'Artificial Intelligence (Theory)' },
         { code: 'DBMS-T', name: 'DBMS (Theory)' },
         { code: 'DSC-T', name: 'Data Structures using C (Theory)' },
         { code: 'AI-L', name: 'AI Lab' },
-        { code: 'LAB', name: 'Lab' }, // General Lab from Monday P7
+        { code: 'LAB', name: 'Lab' },
         { code: 'ENG', name: 'English' },
         { code: 'AOC', name: 'AOC (Analytical Skills)' },
         { code: 'ISW', name: 'ISW' },
@@ -34,8 +33,10 @@ async function seed() {
         { code: 'IKS', name: 'IKS' }
     ];
 
-    subjects.forEach(s => db.prepare('INSERT INTO subjects (code, name, type) VALUES (?,?,?)').run(s.code, s.name, 'theory')); // Defaulting to theory, type less critical for simple app
-    console.log('Subjects seeded.');
+    subjects.forEach(s => {
+        db.prepare('INSERT INTO subjects (code, name, type) VALUES (?,?,?)').run(s.code, s.name, 'theory');
+        console.log(`- Seeded subject: ${s.name} (${s.code})`);
+    });
 
     // Helper to get Subject ID
     const getSubId = (code) => {
@@ -43,7 +44,7 @@ async function seed() {
         return res ? res.id : null;
     };
 
-    // 4. Timetable
+    // 4. Timetable (Verified with User)
     const timetable = {
         'Monday': ['SANS', 'AI-T', 'DBMS-T', 'DSC-T', 'AI-L', 'AI-L', 'LAB'],
         'Tuesday': ['ENG', 'AOC', 'SANS', 'ISW', 'AI-T', 'DBMS-T', 'DSC-T'],
@@ -54,17 +55,18 @@ async function seed() {
     };
 
     Object.entries(timetable).forEach(([day, codes]) => {
+        console.log(`Seeding timetable for ${day}...`);
         codes.forEach((code, index) => {
             const period = index + 1;
             const subId = getSubId(code);
             if (subId) {
                 db.prepare('INSERT INTO timetable (day, period, subject_id) VALUES (?,?,?)').run(day, period, subId);
             } else {
-                console.error(`Subject not found for code: ${code}`);
+                console.error(`!!! Subject not found for code: ${code}`);
             }
         });
     });
-    console.log('Timetable seeded.');
+    console.log('Timetable seeding complete.');
 
     // 5. Students (Sample 30)
     const students = [
