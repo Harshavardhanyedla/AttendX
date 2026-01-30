@@ -7,34 +7,49 @@ let db = null;
 
 async function initializeDatabase() {
     if (db) return db;
-    console.log('Initializing Database...');
-    const SQL = await initSqlJs();
-    if (fs.existsSync(dbPath)) {
-        console.log('Loading existing database from:', dbPath);
-        db = new SQL.Database(fs.readFileSync(dbPath));
-    } else {
-        console.log('Creating new in-memory database');
-        db = new SQL.Database();
-        initializeSchema();
-    }
-
-    // Diagnostic user check
     try {
-        const res = db.exec("SELECT count(*) as count FROM users");
-        const count = (res.length > 0 && res[0].values.length > 0) ? res[0].values[0][0] : 0;
-        console.log(`Diagnostic: Found ${count} users.`);
-        if (count === 0) {
-            console.log('Seeding missing users...');
+        console.log('Initializing Database with SQL.js...');
+        const SQL = await initSqlJs({
+            // Use CDN for WASM to ensure it works on Vercel
+            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+        });
+
+        if (fs.existsSync(dbPath)) {
+            try {
+                const fileBuffer = fs.readFileSync(dbPath);
+                db = new SQL.Database(fileBuffer);
+                console.log('Database loaded from file:', dbPath);
+            } catch (readErr) {
+                console.warn('Failed to read database file, creating new:', readErr.message);
+                db = new SQL.Database();
+                initializeSchema();
+            }
+        } else {
+            console.log('No database file found, creating new in-memory instance.');
+            db = new SQL.Database();
+            initializeSchema();
+        }
+
+        // Final check and auto-seed
+        const res = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+        if (res.length === 0) {
+            console.log('Users table missing, initializing schema...');
+            initializeSchema();
+        }
+
+        const userCheck = db.exec("SELECT count(*) FROM users");
+        const userCount = userCheck[0].values[0][0];
+        if (userCount === 0) {
+            console.log('Seeding initial data...');
             const { seed } = require('../seed/seedData');
             await seed();
         }
+
+        return db;
     } catch (err) {
-        console.warn('Initial user check failed, re-initializing...', err.message);
-        initializeSchema();
-        const { seed } = require('../seed/seedData');
-        await seed();
+        console.error('CRITICAL: Database initialization failed:', err);
+        throw err;
     }
-    return db;
 }
 
 function saveDatabase() {

@@ -21,3 +21,13 @@ if (require.main === module) {
         app.listen(PORT, () => console.log(`Server running on ${PORT}`));
     });
 }
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('Unhandled Server Error:', err);
+    res.status(500).json({
+        error: 'Internal Server Error',
+        message: err.message,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+});
