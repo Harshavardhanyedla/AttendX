@@ -87,4 +87,8 @@ async function seed() {
     console.log('Students seeded.');
 }
 
-seed().catch(console.error);
+module.exports = { seed };
+
+if (require.main === module) {
+    seed().catch(console.error);
+}

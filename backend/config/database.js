@@ -14,6 +14,22 @@ async function initializeDatabase() {
         db = new SQL.Database();
         initializeSchema();
     }
+
+    // Auto-seed if users table is empty
+    try {
+        const userCount = db.prepare('SELECT count(*) as count FROM users').get().count;
+        if (userCount === 0) {
+            console.log('Database empty, triggering auto-seed...');
+            const { seed } = require('../seed/seedData');
+            await seed();
+        }
+    } catch (err) {
+        console.warn('Auto-seed check failed or table missing, re-initializing schema...');
+        initializeSchema();
+        const { seed } = require('../seed/seedData');
+        await seed();
+    }
+
     return db;
 }
 
