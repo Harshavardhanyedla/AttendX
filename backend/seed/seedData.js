@@ -132,7 +132,8 @@ async function seed() {
         { r: '253110101060', n: 'VARADI SUGUNA', g: 'FEMALE' },
         { r: '253110101061', n: 'VELPURI SIVA DURGA', g: 'FEMALE' },
         { r: '253110101062', n: 'YADLA HARSHA VARDHAN', g: 'MALE' },
-        { r: '253110101063', n: 'YALAMANCHILI POOJITHA KOUSALYA', g: 'FEMALE' }
+        { r: '253110101063', n: 'BOKKA MAHITHA', g: 'FEMALE' },
+        { r: '253110101064', n: 'YALAMANCHILI POOJITHA KOUSALYA', g: 'FEMALE' }
     ];
 
     students.forEach((s) => {
