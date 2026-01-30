@@ -4,32 +4,13 @@ import axios from 'axios';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState({ id: 1, role: 'admin', name: 'Admin User' });
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            checkUser();
-        } else {
-            // Temporary bypass: default to admin
-            setUser({ id: 1, role: 'admin', name: 'Guest Admin' });
-            setLoading(false);
-        }
+        // Auth removed permanently as per user request
+        setLoading(false);
     }, []);
-
-    const checkUser = async () => {
-        try {
-            const res = await axios.get('/api/auth/me');
-            setUser(res.data.user);
-        } catch {
-            localStorage.removeItem('token');
-            delete axios.defaults.headers.common['Authorization'];
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const login = async (username, password) => {
         const res = await axios.post('/api/auth/login', { username, password });
