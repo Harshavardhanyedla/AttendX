@@ -15,21 +15,25 @@ async function initializeDatabase() {
         initializeSchema();
     }
 
-    // Auto-seed if users table is empty
+    // Aggressive Auto-seed check
     try {
-        const stmt = db.prepare('SELECT count(*) as count FROM users');
-        const row = stmt.step() ? stmt.getAsObject() : { count: 0 };
-        stmt.free();
-        if (row.count === 0) {
-            console.log('Database empty, triggering auto-seed...');
+        const adminFound = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
+        if (!adminFound) {
+            console.log('Admin user missing, triggering auto-seed...');
             const { seed } = require('../seed/seedData');
             await seed();
+        } else {
+            console.log('Database initialized with admin user found.');
         }
     } catch (err) {
-        console.warn('Auto-seed check failed or table missing, re-initializing schema...');
+        console.warn('Auto-seed check failed (table might be missing), initializing schema and seeding...');
         initializeSchema();
-        const { seed } = require('../seed/seedData');
-        await seed();
+        try {
+            const { seed } = require('../seed/seedData');
+            await seed();
+        } catch (seedErr) {
+            console.error('Final seeding fallback failed:', seedErr.message);
+        }
     }
 
     return db;

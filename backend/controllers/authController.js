@@ -4,8 +4,15 @@ const { generateToken } = require('../middleware/authMiddleware');
 
 exports.login = (req, res) => {
     const { username, password } = req.body;
-    const user = getDb().prepare('SELECT * FROM users WHERE username=?').get(username);
-    if (!user || !bcrypt.compareSync(password, user.password)) return res.status(401).json({ error: 'Invalid' });
+    const user = getDb().prepare('SELECT * FROM users WHERE username = ?').get(username);
+    if (!user) {
+        console.warn(`Login failed: user not found - ${username}`);
+        return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    if (!bcrypt.compareSync(password, user.password)) {
+        console.warn(`Login failed: password mismatch for ${username}`);
+        return res.status(401).json({ message: 'Invalid credentials' });
+    }
     res.json({ token: generateToken(user), user: { id: user.id, role: user.role, name: user.name } });
 };
 
