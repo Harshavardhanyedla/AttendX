@@ -13,6 +13,8 @@ export const AuthProvider = ({ children }) => {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             checkUser();
         } else {
+            // Temporary bypass: default to admin
+            setUser({ id: 1, role: 'admin', name: 'Guest Admin' });
             setLoading(false);
         }
     }, []);
