@@ -7,6 +7,10 @@ module.exports = async (req, res) => {
         app(req, res);
     } catch (error) {
         console.error('DB Init Error:', error);
-        res.status(500).json({ error: 'Database Initialization Failed' });
+        res.status(500).json({
+            error: 'Database Initialization Failed',
+            message: error.message,
+            stack: error.stack
+        });
     }
 };

@@ -31,24 +31,32 @@ async function initializeDatabase() {
         }
 
         // Final check and auto-seed
-        const res = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
-        if (res.length === 0) {
-            console.log('Users table missing, initializing schema...');
+        const tableCheck = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='timetable'");
+        const usersTableCheck = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+
+        if (tableCheck.length === 0 || usersTableCheck.length === 0) {
+            console.log('Essential tables missing, initializing schema...');
             initializeSchema();
         }
 
-        const userCheck = db.exec("SELECT count(*) FROM users");
-        const userCount = userCheck[0].values[0][0];
-        if (userCount === 0) {
-            console.log('Seeding initial data...');
+        const userCountRes = db.exec("SELECT count(*) FROM users");
+        const timetableCountRes = db.exec("SELECT count(*) FROM timetable");
+
+        const userCount = userCountRes[0].values[0][0];
+        const timetableCount = timetableCountRes[0].values[0][0];
+
+        console.log(`Diagnostic: Found ${userCount} users and ${timetableCount} timetable entries.`);
+
+        if (userCount === 0 || timetableCount === 0) {
+            console.log('Data missing, seeding initial database state...');
             const { seed } = require('../seed/seedData');
             await seed();
         }
 
         return db;
     } catch (err) {
-        console.error('CRITICAL: Database initialization failed:', err);
-        throw err;
+        console.error('CRITICAL: Database initialization failed:', err.message);
+        throw new Error(`Database Initialization Failed: ${err.message}`);
     }
 }
 
