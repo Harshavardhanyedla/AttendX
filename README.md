@@ -4,13 +4,12 @@ A complete web-based attendance management system for **I BCA – 2nd Semester**
 
 ## Features
 
-- 🔐 **Role-based Authentication** - Admin and CR (Class Representative) roles
+- 🔐 **Public Access** - Login bypassed for instant access to dashboards
 - 📅 **Period-wise Attendance** - Track attendance for each period (P1-P7)
 - ⏰ **Auto Period Detection** - Automatically detects current day, period, and subject
-- 🔒 **Auto-lock Mechanism** - Attendance locks after period ends (with 5-min grace period)
-- 📊 **Live Dashboard** - Real-time attendance view for admins
-- 📋 **Multiple Reports** - Period-wise, daily, student-wise, and subject-wise reports
-- 📥 **PDF Export** - Download attendance reports as PDF
+- 📊 **Live Dashboard** - Real-time attendance monitoring
+- 📋 **Multiple Reports** - Period-wise, daily, and student-wise views
+- 🔄 **Manual Sync** - One-click database re-seed and timetable sync
 - 📱 **Mobile Responsive** - Works on all devices
 
 ## Tech Stack
