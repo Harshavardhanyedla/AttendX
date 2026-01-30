@@ -17,8 +17,10 @@ async function initializeDatabase() {
 
     // Auto-seed if users table is empty
     try {
-        const userCount = db.prepare('SELECT count(*) as count FROM users').get().count;
-        if (userCount === 0) {
+        const stmt = db.prepare('SELECT count(*) as count FROM users');
+        const row = stmt.step() ? stmt.getAsObject() : { count: 0 };
+        stmt.free();
+        if (row.count === 0) {
             console.log('Database empty, triggering auto-seed...');
             const { seed } = require('../seed/seedData');
             await seed();
