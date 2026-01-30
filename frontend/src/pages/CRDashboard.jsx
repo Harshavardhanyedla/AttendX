@@ -152,9 +152,17 @@ export default function CRDashboard() {
                         <div className="text-sm text-gray-500">{getDateForDay(day)}</div>
                     </div>
                 )}
+
+                {loading && <div style={{ textAlign: 'center', padding: '1rem' }}>Loading data...</div>}
+
+                {!loading && !session?.subject && !session?.message && (
+                    <div style={{ padding: '1rem', background: '#fef3c7', color: '#92400e', borderRadius: '0.5rem', marginTop: '1rem' }}>
+                        No subject assigned for {day} Period {period}. You can only take attendance for periods with assigned subjects.
+                    </div>
+                )}
             </div>
 
-            {session?.subject && (
+            {session?.subject && !loading && (
                 <div className="card">
                     <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
                         <h2>Student List ({students.length})</h2>
