@@ -5,15 +5,11 @@ exports.generateToken = (u) => jwt.sign({ id: u.id, role: u.role }, SECRET);
 exports.verifyToken = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
-        // Temporary bypass: default to admin
-        req.user = { id: 1, role: 'admin', name: 'Guest Admin' };
-        return next();
+        return res.status(401).json({ error: 'Authentication required' });
     }
     jwt.verify(token, SECRET, (err, dec) => {
         if (err) {
-            // Even if token invalid, allow bypass for now
-            req.user = { id: 1, role: 'admin', name: 'Guest Admin' };
-            return next();
+            return res.status(401).json({ error: 'Invalid or expired token' });
         }
         req.user = dec; next();
     });

@@ -12,8 +12,7 @@ async function seed() {
 
     // 2. Users
     const users = [
-        { username: 'admin', password: bcrypt.hashSync('admin123', 10), role: 'admin', name: 'Administrator' },
-        { username: 'cr', password: bcrypt.hashSync('cr123', 10), role: 'cr', name: 'Class Rep' }
+        { username: 'bvricebca12', password: bcrypt.hashSync('bvricebca12', 10), role: 'admin', name: 'Admin' }
     ];
     users.forEach(u => db.prepare('INSERT INTO users (username, password, role, name) VALUES (?,?,?,?)').run(u.username, u.password, u.role, u.name));
     console.log('Users seeded.');

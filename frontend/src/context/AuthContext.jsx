@@ -4,12 +4,25 @@ import axios from 'axios';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState({ id: 1, role: 'admin', name: 'Admin User' });
-    const [loading, setLoading] = useState(false);
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Auth removed permanently as per user request
-        setLoading(false);
+        const checkAuth = async () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                    const res = await axios.get('/api/auth/me');
+                    setUser(res.data);
+                } catch (err) {
+                    localStorage.removeItem('token');
+                    delete axios.defaults.headers.common['Authorization'];
+                }
+            }
+            setLoading(false);
+        };
+        checkAuth();
     }, []);
 
     const login = async (username, password) => {
