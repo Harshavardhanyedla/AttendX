@@ -1,7 +1,6 @@
 const path = require('path');
 
 module.exports = async (req, res) => {
-    // Helper for native response
     const send = (status, data) => {
         res.statusCode = status;
         res.setHeader('Content-Type', 'application/json');
@@ -13,20 +12,23 @@ module.exports = async (req, res) => {
     }
 
     try {
-        console.log("Loading server from:", path.resolve(__dirname, '../backend/server.js'));
         const app = require('../backend/server');
         if (!app) throw new Error("App module is null/undefined");
-
-        // Pass to Express app
         return app(req, res);
     } catch (error) {
-        console.error('CRASH:', error);
+        // Debugging Env Vars safely
+        const envCheck = {
+            hasProject: !!process.env.FIREBASE_PROJECT_ID,
+            hasEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+            hasKey: !!process.env.FIREBASE_PRIVATE_KEY,
+            keyLen: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.length : 0
+        };
+
         return send(500, {
             error: 'Backend Init Failed',
-            code: error.code,
             message: error.message,
             stack: error.stack,
-            cwd: process.cwd()
+            envDebug: envCheck // <--- Sending back to client
         });
     }
 };
