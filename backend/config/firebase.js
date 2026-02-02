@@ -2,32 +2,35 @@ require('dotenv').config();
 const admin = require('firebase-admin');
 const fs = require('fs');
 
-if (!admin.apps.length) {
+let db;
+
+function initializeFirebase() {
+    if (admin.apps.length > 0) {
+        return admin.firestore();
+    }
+
     try {
         let credential;
 
-        // Option A: Look for the JSON file (Local Seeding)
+        // Option A: Look for the JSON file (Local Seeding Only)
         const localKeyPath = '/Users/yadlaharshavardhan/Downloads/attendx-e5fbd-firebase-adminsdk-fbsvc-9e6b2d8648.json';
 
         if (fs.existsSync(localKeyPath)) {
-            console.log("Initialization: Using local JSON key.");
+            console.log("Firebase: Using local JSON key.");
             credential = admin.credential.cert(localKeyPath);
         } else if (process.env.FIREBASE_PRIVATE_KEY) {
-            console.log("Initialization: Using Environment Variables.");
+            console.log("Firebase: Using Environment Variables.");
 
-            // Log lengths to help debug missing characters (masked)
-            console.log(`Key length: ${process.env.FIREBASE_PRIVATE_KEY.length}`);
+            // Clean up the project ID and email
+            const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim().replace(/^["']|["']$/g, '');
+            const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim().replace(/^["']|["']$/g, '');
 
+            // Critical: Clean up the private key
             let privateKey = process.env.FIREBASE_PRIVATE_KEY.trim();
-            // Handle quotes if they were pasted accidentally
-            if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-                privateKey = privateKey.substring(1, privateKey.length - 1);
-            }
-            // Replace literal \n with actual newlines
+            // Remove surrounding quotes if they exist
+            privateKey = privateKey.replace(/^["']|["']$/g, '');
+            // Convert literal \n to actual newlines
             privateKey = privateKey.replace(/\\n/g, '\n');
-
-            const projectId = (process.env.FIREBASE_PROJECT_ID || '').replace(/"/g, '').trim();
-            const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').replace(/"/g, '').trim();
 
             credential = admin.credential.cert({
                 projectId,
@@ -39,14 +42,26 @@ if (!admin.apps.length) {
         if (credential) {
             admin.initializeApp({ credential });
             console.log("Firebase Admin SDK initialized successfully.");
+            return admin.firestore();
         } else {
-            console.error("FATAL: No Firebase credentials found in env or local file.");
+            console.error("CRITICAL ERROR: No Firebase credentials found (Vercel Env Vars or Local JSON).");
+            // Instead of crashing, we return a mock/proxy or initialize empty to see logs
+            return null;
         }
     } catch (error) {
-        console.error("Firebase Admin SDK Initialization Error:", error.message);
+        console.error("Firebase Admin SDK Initialization Error:", error.stack);
+        return null;
     }
 }
 
-const db = admin.firestore();
+// Lazy load db to prevent crash during module import
+const getDb = () => {
+    if (!db) db = initializeFirebase();
+    if (!db) throw new Error("Database not initialized. Check server logs for Firebase errors.");
+    return db;
+};
 
-module.exports = { db, admin };
+module.exports = {
+    get db() { return getDb(); },
+    admin
+};
