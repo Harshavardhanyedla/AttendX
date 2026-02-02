@@ -9,7 +9,7 @@ module.exports = async (req, res) => {
     };
 
     if (req.url === '/api/ping') {
-        return send(200, { status: 'pong-native' });
+        return send(200, { status: 'pong-final' });
     }
 
     try {
