@@ -1,3 +1,5 @@
+const { db } = require('../config/firebase');
+
 /**
  * GET /partial
  * Returns students who have partial attendance (bunking) for a specific date.
