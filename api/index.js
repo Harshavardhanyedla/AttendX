@@ -16,7 +16,15 @@ module.exports = async (req, res) => {
         if (!app) throw new Error("App module is null/undefined");
         return app(req, res);
     } catch (error) {
-        // Debugging Env Vars safely
+        // Retrieve init error from firebase config if available
+        let firebaseError = null;
+        try {
+            const fbConfig = require('../backend/config/firebase');
+            firebaseError = fbConfig.initError;
+        } catch (e) {
+            firebaseError = "Could not read firebase config: " + e.message;
+        }
+
         const envCheck = {
             hasProject: !!process.env.FIREBASE_PROJECT_ID,
             hasEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
@@ -27,8 +35,8 @@ module.exports = async (req, res) => {
         return send(500, {
             error: 'Backend Init Failed',
             message: error.message,
-            stack: error.stack,
-            envDebug: envCheck // <--- Sending back to client
+            firebaseError: firebaseError, // <--- The smoking gun
+            envDebug: envCheck
         });
     }
 };
