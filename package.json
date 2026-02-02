@@ -7,8 +7,5 @@
     },
     "engines": {
         "node": "20.x"
-    },
-    "dependencies": {
-        "pdfkit": "^0.17.2"
     }
 }
