@@ -1,75 +1,52 @@
 require('dotenv').config();
-const admin = require('firebase-admin');
 const fs = require('fs');
 
-let db;
+let _db;
+let _admin;
 
-function initializeFirebase() {
-    if (admin.apps.length > 0) {
-        return admin.firestore();
-    }
+function getFirebase() {
+    if (_admin) return { db: _db, admin: _admin };
 
     try {
+        _admin = require('firebase-admin');
         let credential;
 
-        // Option A: Local Seeding
         const localKeyPath = '/Users/yadlaharshavardhan/Downloads/attendx-e5fbd-firebase-adminsdk-fbsvc-9e6b2d8648.json';
 
         if (fs.existsSync(localKeyPath)) {
-            console.log("Firebase: Using local JSON key.");
-            credential = admin.credential.cert(localKeyPath);
+            console.log("Firebase: Local JSON found.");
+            credential = _admin.credential.cert(localKeyPath);
         } else if (process.env.FIREBASE_PRIVATE_KEY) {
-            console.log("Firebase: Attempting Env Var Initialization...");
+            console.log("Firebase: Using Env Vars.");
 
-            let privateKey = process.env.FIREBASE_PRIVATE_KEY.trim();
-            // Remove any types of quotes
-            privateKey = privateKey.replace(/^["']|["']$/g, '');
+            let pk = process.env.FIREBASE_PRIVATE_KEY.trim().replace(/^["']|["']$/g, '');
+            // Support both literal \n and actual newlines
+            pk = pk.split('\\n').join('\n');
 
-            // If the key doesn't have \n but has actual newlines, we need to handle both
-            if (privateKey.includes('\\n')) {
-                privateKey = privateKey.replace(/\\n/g, '\n');
-            }
+            const email = (process.env.FIREBASE_CLIENT_EMAIL || '').trim().replace(/^["']|["']$/g, '');
+            const project = (process.env.FIREBASE_PROJECT_ID || '').trim().replace(/^["']|["']$/g, '');
 
-            const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || '').trim().replace(/^["']|["']$/g, '');
-            const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim().replace(/^["']|["']$/g, '');
-
-            console.log(`Debug Info: PK Length=${privateKey.length}, Project=${projectId}, Email=${clientEmail}`);
-
-            if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-                console.error("FATAL: Private Key is missing BEGIN header!");
-            }
-
-            credential = admin.credential.cert({
-                projectId,
-                clientEmail,
-                privateKey,
+            credential = _admin.credential.cert({
+                projectId: project,
+                clientEmail: email,
+                privateKey: pk,
             });
         }
 
         if (credential) {
-            admin.initializeApp({ credential });
-            console.log("Firebase: Initialization Successful.");
-            return admin.firestore();
+            _admin.initializeApp({ credential });
+            _db = _admin.firestore();
+            console.log("Firebase: Success.");
         } else {
-            console.error("FATAL: No credentials found to initialize Firebase.");
-            return null;
+            console.error("Firebase: No credentials.");
         }
-    } catch (error) {
-        console.error("Firebase Initialization CRASH:", error.message);
-        return null;
+    } catch (err) {
+        console.error("Firebase Init Crash:", err.message);
     }
+    return { db: _db, admin: _admin };
 }
 
-const getDb = () => {
-    if (!db) db = initializeFirebase();
-    if (!db) {
-        console.error("Attempted to access Firestore but it is not initialized.");
-        return null;
-    }
-    return db;
-};
-
 module.exports = {
-    get db() { return getDb(); },
-    admin
+    get db() { return getFirebase().db; },
+    get admin() { return getFirebase().admin; }
 };
