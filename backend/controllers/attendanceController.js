@@ -163,9 +163,11 @@ async function getLive(req, res) {
         // Get all periods for today from timetable
         const periodsSnapshot = await db.collection("timetable")
             .where("day", "==", day)
-            .orderBy("period")
+            // .orderBy("period") // Removed to avoid index requirements
             .get();
-        const periods = periodsSnapshot.docs.map(d => d.data());
+        const periods = periodsSnapshot.docs
+            .map(d => d.data())
+            .sort((a, b) => a.period - b.period); // Sort in JS
 
         // Get attendance counts for today
         const statsSnapshot = await db.collection("attendance")
