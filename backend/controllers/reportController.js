@@ -1,11 +1,11 @@
-const { db } = require('../config/database');
+const { db } = require('../config/firebase');
 const { generateAttendancePDF, generateDailySummaryPDF, generateStudentPDF } = require('../utils/pdfGenerator');
 const { getPeriodTimeRange, getAllPeriods } = require('../utils/periodUtils');
 
 /**
  * Get period-wise attendance report
  */
-function getPeriodReport(req, res) {
+async function getPeriodReport(req, res) {
     try {
         const { date, period } = req.query;
 
@@ -13,22 +13,41 @@ function getPeriodReport(req, res) {
             return res.status(400).json({ error: 'Date and period are required' });
         }
 
-        const attendance = db.prepare(`
-      SELECT a.*, s.roll_no, s.name, s.gender, sub.name as subject_name
-      FROM attendance a
-      JOIN students s ON a.student_id = s.id
-      JOIN subjects sub ON a.subject_id = sub.id
-      WHERE a.date = ? AND a.period = ?
-      ORDER BY s.roll_no
-    `).all(date, parseInt(period));
+        const periodInt = parseInt(period);
+        const attendanceSnapshot = await db.collection("attendance")
+            .where("date", "==", date)
+            .where("period", "==", periodInt)
+            .get();
 
-        const periodInfo = getPeriodTimeRange(parseInt(period));
+        if (attendanceSnapshot.empty) {
+            return res.json({ date, period: periodInt, summary: { total: 0, present: 0, absent: 0, rate: 0 }, attendance: [] });
+        }
+
+        const attendanceData = attendanceSnapshot.docs.map(d => d.data());
+
+        // Fetch student details for joins
+        const studentSnapshot = await db.collection("students").get();
+        const studentMap = {};
+        studentSnapshot.docs.forEach(d => {
+            const data = d.data();
+            studentMap[data.roll_no] = data;
+        });
+
+        // Map and sort
+        const attendance = attendanceData.map(a => ({
+            ...a,
+            roll_no: a.student_id,
+            name: studentMap[a.student_id]?.name || 'Unknown',
+            gender: studentMap[a.student_id]?.gender || 'N/A'
+        })).sort((a, b) => a.roll_no.localeCompare(b.roll_no));
+
+        const periodInfo = getPeriodTimeRange(periodInt);
         const total = attendance.length;
         const present = attendance.filter(a => a.status === 'present').length;
 
         res.json({
             date,
-            period: parseInt(period),
+            period: periodInt,
             periodLabel: periodInfo?.label || `P${period}`,
             timeRange: `${periodInfo?.start} - ${periodInfo?.end}`,
             subject: attendance.length > 0 ? attendance[0].subject_name : 'N/A',
@@ -49,7 +68,7 @@ function getPeriodReport(req, res) {
 /**
  * Get daily attendance report
  */
-function getDailyReport(req, res) {
+async function getDailyReport(req, res) {
     try {
         const { date } = req.query;
 
@@ -60,41 +79,41 @@ function getDailyReport(req, res) {
         const periods = getAllPeriods();
         const dateObj = new Date(date);
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const day = dayNames[dateObj.getDay()];
+        const dayStr = dayNames[dateObj.getDay()];
 
-        // Get period-wise stats
-        const periodStats = db.prepare(`
-      SELECT 
-        a.period,
-        sub.name as subject_name,
-        COUNT(*) as total,
-        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present,
-        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as absent
-      FROM attendance a
-      JOIN subjects sub ON a.subject_id = sub.id
-      WHERE a.date = ?
-      GROUP BY a.period
-      ORDER BY a.period
-    `).all(date);
+        // Get all attendance for that date
+        const attendanceSnapshot = await db.collection("attendance").where("date", "==", date).get();
+        const records = attendanceSnapshot.docs.map(d => d.data());
 
-        const periodData = periodStats.map(p => ({
-            period: p.period,
-            periodLabel: `P${p.period}`,
-            timeRange: `${periods[p.period].start} - ${periods[p.period].end}`,
-            subject: p.subject_name,
-            total: p.total,
-            present: p.present,
-            absent: p.absent,
-            rate: p.total > 0 ? Math.round((p.present / p.total) * 100) : 0
-        }));
+        // Get timetable to know which subjects were supposed to happen
+        const timetableSnapshot = await db.collection("timetable").where("day", "==", dayStr).get();
+        const timetable = timetableSnapshot.docs.map(d => d.data());
+
+        // Process stats per period
+        const periodData = timetable.map(tp => {
+            const periodRecords = records.filter(r => r.period === tp.period);
+            const total = periodRecords.length;
+            const present = periodRecords.filter(r => r.status === 'present').length;
+
+            return {
+                period: tp.period,
+                periodLabel: `P${tp.period}`,
+                timeRange: periods[tp.period] ? `${periods[tp.period].start} - ${periods[tp.period].end}` : 'N/A',
+                subject: tp.subject_name,
+                total,
+                present,
+                absent: total - present,
+                rate: total > 0 ? Math.round((present / total) * 100) : 0
+            };
+        }).sort((a, b) => a.period - b.period);
 
         // Overall stats
-        const overallTotal = periodStats.reduce((sum, p) => sum + p.total, 0);
-        const overallPresent = periodStats.reduce((sum, p) => sum + p.present, 0);
+        const overallTotal = periodData.reduce((sum, p) => sum + p.total, 0);
+        const overallPresent = periodData.reduce((sum, p) => sum + p.present, 0);
 
         res.json({
             date,
-            day,
+            day: dayStr,
             periods: periodData,
             overallSummary: {
                 totalRecords: overallTotal,
@@ -112,7 +131,7 @@ function getDailyReport(req, res) {
 /**
  * Get student-wise attendance report
  */
-function getStudentReport(req, res) {
+async function getStudentReport(req, res) {
     try {
         const { studentId, startDate, endDate } = req.query;
 
@@ -121,49 +140,42 @@ function getStudentReport(req, res) {
         }
 
         // Get student info
-        const student = db.prepare('SELECT * FROM students WHERE id = ?').get(parseInt(studentId));
-
-        if (!student) {
+        const studentDoc = await db.collection("students").doc(studentId).get();
+        if (!studentDoc.exists) {
             return res.status(404).json({ error: 'Student not found' });
         }
+        const student = { id: studentDoc.id, ...studentDoc.data() };
 
-        // Build query
-        let query = `
-      SELECT a.*, sub.name as subject_name, sub.code as subject_code
-      FROM attendance a
-      JOIN subjects sub ON a.subject_id = sub.id
-      WHERE a.student_id = ?
-    `;
-        const params = [parseInt(studentId)];
+        // Fetch attendance
+        let query = db.collection("attendance").where("student_id", "==", studentId);
+        const attendanceSnapshot = await query.get();
+        let attendance = attendanceSnapshot.docs.map(d => d.data());
 
+        // Manual date filter
         if (startDate && endDate) {
-            query += ' AND a.date BETWEEN ? AND ?';
-            params.push(startDate, endDate);
+            attendance = attendance.filter(a => a.date >= startDate && a.date <= endDate);
         }
 
-        query += ' ORDER BY a.date DESC, a.period';
+        attendance.sort((a, b) => b.date.localeCompare(a.date) || a.period - b.period);
 
-        const attendance = db.prepare(query).all(...params);
-
-        // Calculate overall stats
+        // Calculate stats
         const total = attendance.length;
         const present = attendance.filter(a => a.status === 'present').length;
 
         // Subject-wise breakdown
         const subjectMap = {};
         attendance.forEach(a => {
-            if (!subjectMap[a.subject_code]) {
-                subjectMap[a.subject_code] = {
+            const code = a.subject_id;
+            if (!subjectMap[code]) {
+                subjectMap[code] = {
                     subject: a.subject_name,
-                    code: a.subject_code,
+                    code: code,
                     total: 0,
                     present: 0
                 };
             }
-            subjectMap[a.subject_code].total++;
-            if (a.status === 'present') {
-                subjectMap[a.subject_code].present++;
-            }
+            subjectMap[code].total++;
+            if (a.status === 'present') subjectMap[code].present++;
         });
 
         const subjectWise = Object.values(subjectMap).map(s => ({
@@ -193,7 +205,7 @@ function getStudentReport(req, res) {
 /**
  * Get subject-wise attendance report
  */
-function getSubjectReport(req, res) {
+async function getSubjectReport(req, res) {
     try {
         const { subjectId, startDate, endDate } = req.query;
 
@@ -202,40 +214,45 @@ function getSubjectReport(req, res) {
         }
 
         // Get subject info
-        const subject = db.prepare('SELECT * FROM subjects WHERE id = ?').get(parseInt(subjectId));
-
-        if (!subject) {
+        const subjectDoc = await db.collection("subjects").doc(subjectId).get();
+        if (!subjectDoc.exists) {
             return res.status(404).json({ error: 'Subject not found' });
         }
+        const subject = { id: subjectDoc.id, ...subjectDoc.data() };
 
-        // Build query
-        let query = `
-      SELECT a.*, s.roll_no, s.name as student_name, s.gender
-      FROM attendance a
-      JOIN students s ON a.student_id = s.id
-      WHERE a.subject_id = ?
-    `;
-        const params = [parseInt(subjectId)];
+        // Get attendance
+        const attendanceSnapshot = await db.collection("attendance").where("subject_id", "==", subjectId).get();
+        let attendanceData = attendanceSnapshot.docs.map(d => d.data());
 
         if (startDate && endDate) {
-            query += ' AND a.date BETWEEN ? AND ?';
-            params.push(startDate, endDate);
+            attendanceData = attendanceData.filter(a => a.date >= startDate && a.date <= endDate);
         }
 
-        query += ' ORDER BY a.date DESC, s.roll_no';
+        // Fetch students for joining names
+        const studentSnapshot = await db.collection("students").get();
+        const studentMap = {};
+        studentSnapshot.docs.forEach(d => {
+            const data = d.data();
+            studentMap[data.roll_no] = data;
+        });
 
-        const attendance = db.prepare(query).all(...params);
+        const attendance = attendanceData.map(a => ({
+            ...a,
+            roll_no: a.student_id,
+            student_name: studentMap[a.student_id]?.name || 'Unknown',
+            gender: studentMap[a.student_id]?.gender || 'N/A'
+        }));
 
         // Calculate stats
         const total = attendance.length;
         const present = attendance.filter(a => a.status === 'present').length;
 
         // Student-wise breakdown
-        const studentMap = {};
+        const resStudentMap = {};
         attendance.forEach(a => {
-            if (!studentMap[a.student_id]) {
-                studentMap[a.student_id] = {
-                    student_id: a.student_id,
+            if (!resStudentMap[a.roll_no]) {
+                resStudentMap[a.roll_no] = {
+                    student_id: a.roll_no,
                     roll_no: a.roll_no,
                     name: a.student_name,
                     gender: a.gender,
@@ -243,13 +260,11 @@ function getSubjectReport(req, res) {
                     present: 0
                 };
             }
-            studentMap[a.student_id].total++;
-            if (a.status === 'present') {
-                studentMap[a.student_id].present++;
-            }
+            resStudentMap[a.roll_no].total++;
+            if (a.status === 'present') resStudentMap[a.roll_no].present++;
         });
 
-        const studentWise = Object.values(studentMap).map(s => ({
+        const studentWise = Object.values(resStudentMap).map(s => ({
             ...s,
             absent: s.total - s.present,
             rate: s.total > 0 ? Math.round((s.present / s.total) * 100) : 0
@@ -276,7 +291,7 @@ function getSubjectReport(req, res) {
 /**
  * Download period-wise PDF report
  */
-function downloadPeriodPDF(req, res) {
+async function downloadPeriodPDF(req, res) {
     try {
         const { date, period } = req.query;
 
@@ -284,16 +299,30 @@ function downloadPeriodPDF(req, res) {
             return res.status(400).json({ error: 'Date and period are required' });
         }
 
-        const attendance = db.prepare(`
-      SELECT a.*, s.roll_no, s.name, s.gender, sub.name as subject_name
-      FROM attendance a
-      JOIN students s ON a.student_id = s.id
-      JOIN subjects sub ON a.subject_id = sub.id
-      WHERE a.date = ? AND a.period = ?
-      ORDER BY s.roll_no
-    `).all(date, parseInt(period));
+        const periodInt = parseInt(period);
+        const attendanceSnapshot = await db.collection("attendance")
+            .where("date", "==", date)
+            .where("period", "==", periodInt)
+            .get();
+        const attendanceData = attendanceSnapshot.docs.map(d => d.data());
 
-        const periodInfo = getPeriodTimeRange(parseInt(period));
+        // Fetch student details for joins
+        const studentSnapshot = await db.collection("students").get();
+        const studentMap = {};
+        studentSnapshot.docs.forEach(d => {
+            const data = d.data();
+            studentMap[data.roll_no] = data;
+        });
+
+        // Map and sort
+        const attendance = attendanceData.map(a => ({
+            ...a,
+            roll_no: a.student_id,
+            name: studentMap[a.student_id]?.name || 'Unknown',
+            gender: studentMap[a.student_id]?.gender || 'N/A'
+        })).sort((a, b) => a.roll_no.localeCompare(b.roll_no));
+
+        const periodInfo = getPeriodTimeRange(periodInt);
         const dateObj = new Date(date);
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -305,7 +334,7 @@ function downloadPeriodPDF(req, res) {
             date: dateObj.toLocaleDateString('en-IN'),
             day: dayNames[dateObj.getDay()],
             period: `P${period}`,
-            timeRange: `${periodInfo?.start} - ${periodInfo?.end}`,
+            timeRange: periodInfo ? `${periodInfo.start} - ${periodInfo.end}` : '',
             subject: attendance.length > 0 ? attendance[0].subject_name : 'N/A',
             reportType: 'Period-wise Attendance',
             summary: {
@@ -325,7 +354,7 @@ function downloadPeriodPDF(req, res) {
 /**
  * Download daily summary PDF
  */
-function downloadDailyPDF(req, res) {
+async function downloadDailyPDF(req, res) {
     try {
         const { date } = req.query;
 
@@ -333,20 +362,28 @@ function downloadDailyPDF(req, res) {
             return res.status(400).json({ error: 'Date is required' });
         }
 
-        const periods = getAllPeriods();
         const dateObj = new Date(date);
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const day = dayNames[dateObj.getDay()];
 
         // Get all attendance for the day
-        const attendance = db.prepare(`
-      SELECT a.*, s.roll_no, s.name, s.gender, sub.name as subject_name
-      FROM attendance a
-      JOIN students s ON a.student_id = s.id
-      JOIN subjects sub ON a.subject_id = sub.id
-      WHERE a.date = ?
-      ORDER BY a.period, s.roll_no
-    `).all(date);
+        const attendanceSnapshot = await db.collection("attendance").where("date", "==", date).get();
+        const attendanceData = attendanceSnapshot.docs.map(d => d.data());
+
+        // Fetch student details for joins
+        const studentSnapshot = await db.collection("students").get();
+        const studentMap = {};
+        studentSnapshot.docs.forEach(d => {
+            const data = d.data();
+            studentMap[data.roll_no] = data;
+        });
+
+        const attendance = attendanceData.map(a => ({
+            ...a,
+            roll_no: a.student_id,
+            name: studentMap[a.student_id]?.name || 'Unknown',
+            gender: studentMap[a.student_id]?.gender || 'N/A'
+        })).sort((a, b) => a.period - b.period || a.roll_no.localeCompare(b.roll_no));
 
         const total = attendance.length;
         const present = attendance.filter(a => a.status === 'present').length;
@@ -376,7 +413,7 @@ function downloadDailyPDF(req, res) {
 /**
  * Download student-wise PDF
  */
-function downloadStudentPDF(req, res) {
+async function downloadStudentPDF(req, res) {
     try {
         const { studentId, startDate, endDate } = req.query;
 
@@ -384,26 +421,18 @@ function downloadStudentPDF(req, res) {
             return res.status(400).json({ error: 'Student ID is required' });
         }
 
-        const student = db.prepare('SELECT * FROM students WHERE id = ?').get(parseInt(studentId));
-
-        if (!student) {
+        const studentDoc = await db.collection("students").doc(studentId).get();
+        if (!studentDoc.exists) {
             return res.status(404).json({ error: 'Student not found' });
         }
+        const student = { id: studentDoc.id, ...studentDoc.data() };
 
-        let query = `
-      SELECT a.*, sub.name as subject_name, sub.code as subject_code
-      FROM attendance a
-      JOIN subjects sub ON a.subject_id = sub.id
-      WHERE a.student_id = ?
-    `;
-        const params = [parseInt(studentId)];
+        const attendanceSnapshot = await db.collection("attendance").where("student_id", "==", studentId).get();
+        let attendance = attendanceSnapshot.docs.map(d => d.data());
 
         if (startDate && endDate) {
-            query += ' AND a.date BETWEEN ? AND ?';
-            params.push(startDate, endDate);
+            attendance = attendance.filter(a => a.date >= startDate && a.date <= endDate);
         }
-
-        const attendance = db.prepare(query).all(...params);
 
         const total = attendance.length;
         const present = attendance.filter(a => a.status === 'present').length;
@@ -411,11 +440,12 @@ function downloadStudentPDF(req, res) {
         // Subject-wise breakdown
         const subjectMap = {};
         attendance.forEach(a => {
-            if (!subjectMap[a.subject_code]) {
-                subjectMap[a.subject_code] = { subject: a.subject_name, total: 0, present: 0 };
+            const code = a.subject_id;
+            if (!subjectMap[code]) {
+                subjectMap[code] = { subject: a.subject_name, total: 0, present: 0 };
             }
-            subjectMap[a.subject_code].total++;
-            if (a.status === 'present') subjectMap[a.subject_code].present++;
+            subjectMap[code].total++;
+            if (a.status === 'present') subjectMap[code].present++;
         });
 
         const subjectWise = Object.values(subjectMap).map(s => ({

@@ -1,6 +1,7 @@
 node_modules
 dist
 .env
+backend/.env
 .DS_Store
 .agent
 brain

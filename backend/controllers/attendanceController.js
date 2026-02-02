@@ -1,86 +1,101 @@
-const { getDb } = require('../config/database');
+const { db } = require('../config/firebase');
 const { getCurrentDay, getCurrentPeriod, getPeriodTimeRange } = require('../utils/periodUtils');
 
 /**
  * GET /session
  * Returns current session info for CR to mark attendance.
- * If mock=true, forces Monday 10:00 AM (P2) for testing.
  */
-function getSession(req, res) {
-    const { day: qDay, period: qPeriod } = req.query;
-    const now = new Date();
+async function getSession(req, res) {
+    try {
+        const { day: qDay, period: qPeriod } = req.query;
+        const now = new Date();
 
-    let day = qDay || getCurrentDay(now);
-    let period = qPeriod ? parseInt(qPeriod) : getCurrentPeriod(now);
+        let day = qDay || getCurrentDay(now);
+        let period = qPeriod ? parseInt(qPeriod) : getCurrentPeriod(now);
 
-    // Mock removed in favor of manual selection
+        // If undefined period (before/after college), or break
+        if (!period || period === 'BREAK') {
+            return res.json({
+                day,
+                period: null,
+                message: period === 'BREAK' ? 'It is Break Time (13:00-14:00)' : 'No class session active now.'
+            });
+        }
 
+        // Get Subject from Timetable
+        const timetableSnapshot = await db.collection("timetable")
+            .where("day", "==", day)
+            .where("period", "==", period)
+            .get();
 
-    const db = getDb();
+        if (timetableSnapshot.empty) {
+            return res.json({ day, period, message: 'Free Period (No subject assigned)' });
+        }
 
-    // If undefined period (before/after college), or break
-    if (!period || period === 'BREAK') {
-        return res.json({
+        const timetableEntry = timetableSnapshot.docs[0].data();
+
+        // Check if attendance already marked
+        const dateStr = now.toISOString().split('T')[0];
+        const attendanceSnapshot = await db.collection("attendance")
+            .where("date", "==", dateStr)
+            .where("period", "==", period)
+            .get();
+
+        const isMarked = !attendanceSnapshot.empty;
+
+        res.json({
             day,
-            period: null,
-            message: period === 'BREAK' ? 'It is Break Time (13:00-14:00)' : 'No class session active now.'
+            period,
+            timeRange: getPeriodTimeRange(period),
+            subject: {
+                id: timetableEntry.subject_id,
+                name: timetableEntry.subject_name,
+                code: timetableEntry.subject_code
+            },
+            isMarked
         });
+    } catch (error) {
+        console.error('getSession Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
-
-    // Get Subject from Timetable
-    const timetableEntry = db.prepare(`
-    SELECT t.subject_id, s.name as subject_name, s.code as subject_code
-    FROM timetable t
-    JOIN subjects s ON t.subject_id = s.id
-    WHERE t.day = ? AND t.period = ?
-  `).get(day, period);
-
-    if (!timetableEntry) {
-        return res.json({ day, period, message: 'Free Period (No subject assigned)' });
-    }
-
-    // Check if attendance already marked
-    const dateStr = now.toISOString().split('T')[0];
-    const existing = db.prepare('SELECT COUNT(*) as count FROM attendance WHERE date = ? AND period = ?').get(dateStr, period);
-    const isMarked = existing && existing.count > 0;
-
-    res.json({
-        day,
-        period,
-        timeRange: getPeriodTimeRange(period),
-        subject: {
-            id: timetableEntry.subject_id,
-            name: timetableEntry.subject_name,
-            code: timetableEntry.subject_code
-        },
-        isMarked
-    });
 }
 
 /**
  * GET /students
  * Returns all students with their current attendance status for the specific date/period if provided
  */
-function getStudents(req, res) {
-    const db = getDb();
-    const { date, period } = req.query; // Optional, to check existing status
+async function getStudents(req, res) {
+    try {
+        const { date, period } = req.query;
 
-    const students = db.prepare('SELECT id, roll_no, name, gender FROM students ORDER BY roll_no').all();
+        const studentSnapshot = await db.collection("students").orderBy("roll_no").get();
+        const students = studentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    if (date && period) {
-        const attendance = db.prepare('SELECT student_id, status FROM attendance WHERE date = ? AND period = ?').all(date, period);
-        const statusMap = {};
-        attendance.forEach(a => statusMap[a.student_id] = a.status);
+        if (date && period) {
+            const attendanceSnapshot = await db.collection("attendance")
+                .where("date", "==", date)
+                .where("period", "==", parseInt(period))
+                .get();
 
-        // Merge status
-        const result = students.map(s => ({
-            ...s,
-            status: statusMap[s.id] || 'present' // Default to present if not marked, or handle on frontend
-        }));
-        return res.json({ students: result });
+            const statusMap = {};
+            attendanceSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                statusMap[data.student_id] = data.status;
+            });
+
+            // Merge status
+            const result = students.map(s => ({
+                ...s,
+                status: statusMap[s.id] || 'present'
+            }));
+            return res.json({ students: result });
+        }
+
+        res.json({ students });
+    } catch (error) {
+        console.error('getStudents Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
-
-    res.json({ students });
 }
 
 /**
@@ -88,40 +103,43 @@ function getStudents(req, res) {
  * CR submits attendance.
  * Body: { date, period, subject_id, records: [{ studentId, status }] }
  */
-function markAttendance(req, res) {
-    const { date, period, subject_id, records } = req.body;
-    if (!date || !period || !records || !Array.isArray(records)) {
-        return res.status(400).json({ error: 'Invalid data' });
-    }
-
-    const db = getDb();
-    const userId = req.user.id;
-
+async function markAttendance(req, res) {
     try {
-        // We use a transaction conceptually, but here we just loop for SQLite
-        // First, delete existing for this slot (Overwrite policy)
-        // Actually, SQL replace or update is better, but delete-insert is simple for "Latest saves overwrites"
+        const { date, period, subject_id, records } = req.body;
+        if (!date || !period || !records || !Array.isArray(records)) {
+            return res.status(400).json({ error: 'Invalid data' });
+        }
 
-        // Check lock? Prompt says "Latest saved attendance overwrites previous one". No strict lock mentioned.
+        const userId = req.user.id;
 
-        // We can use INSERT OR REPLACE.
-        // However, since we might want to clear old records not in the new list (unlikely for full class list), 
-        // let's just loop "INSERT OR REPLACE"
-
-        const stmt = db.prepare(`
-      INSERT OR REPLACE INTO attendance (student_id, date, period, subject_id, status, marked_by)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
+        // Fetch subject name for denormalization
+        const subjectDoc = await db.collection("subjects").doc(subject_id).get();
+        const subjectName = subjectDoc.exists ? subjectDoc.data().name : 'Unknown';
 
         let presentCount = 0;
+        const batch = db.batch();
+
         records.forEach(r => {
-            stmt.run(r.studentId, date, period, subject_id, r.status, userId);
             if (r.status === 'present') presentCount++;
+            const docId = `${r.studentId}_${date}_${period}`;
+            const ref = db.collection("attendance").doc(docId);
+            batch.set(ref, {
+                student_id: r.studentId,
+                date,
+                period: parseInt(period),
+                subject_id,
+                subject_name: subjectName,
+                status: r.status,
+                marked_by: userId,
+                marked_at: new Date().toISOString()
+            });
         });
 
+        await batch.commit();
+
         res.json({ message: 'Attendance saved', total: records.length, present: presentCount });
-    } catch (err) {
-        console.error(err);
+    } catch (error) {
+        console.error('markAttendance Error:', error);
         res.status(500).json({ error: 'Failed to save attendance' });
     }
 }
@@ -130,44 +148,50 @@ function markAttendance(req, res) {
  * GET /live
  * Admin view of today's stats period-wise
  */
-function getLive(req, res) {
-    const db = getDb();
-    const date = new Date().toISOString().split('T')[0];
-    const day = getCurrentDay(new Date()); // Should match server time
+async function getLive(req, res) {
+    try {
+        const date = new Date().toISOString().split('T')[0];
+        const day = getCurrentDay(new Date());
 
-    // Get all periods for today from timetable
-    const periods = db.prepare(`
-    SELECT t.period, s.name as subject
-    FROM timetable t
-    JOIN subjects s ON t.subject_id = s.id
-    WHERE t.day = ?
-    ORDER BY t.period
-  `).all(day);
+        // Get all periods for today from timetable
+        const periodsSnapshot = await db.collection("timetable")
+            .where("day", "==", day)
+            .orderBy("period")
+            .get();
+        const periods = periodsSnapshot.docs.map(d => d.data());
 
-    // Get attendance counts for today
-    const stats = db.prepare(`
-    SELECT period, 
-           COUNT(*) as total,
-           SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) as present
-    FROM attendance
-    WHERE date = ?
-    GROUP BY period
-  `).all(date);
+        // Get attendance counts for today
+        const statsSnapshot = await db.collection("attendance")
+            .where("date", "==", date)
+            .get();
+        const records = statsSnapshot.docs.map(d => d.data());
 
-    // Merge
-    const result = periods.map(p => {
-        const stat = stats.find(s => s.period === p.period);
-        return {
-            period: p.period,
-            subject: p.subject,
-            isMarked: !!stat,
-            total: stat ? stat.total : 0,
-            present: stat ? stat.present : 0,
-            absent: stat ? (stat.total - stat.present) : 0
-        };
-    });
+        // Process stats in JS
+        const statsMap = {};
+        records.forEach(r => {
+            if (!statsMap[r.period]) statsMap[r.period] = { total: 0, present: 0 };
+            statsMap[r.period].total++;
+            if (r.status === 'present') statsMap[r.period].present++;
+        });
 
-    res.json({ date, day, periods: result });
+        // Merge
+        const result = periods.map(p => {
+            const stat = statsMap[p.period];
+            return {
+                period: p.period,
+                subject: p.subject_name,
+                isMarked: !!stat,
+                total: stat ? stat.total : 0,
+                present: stat ? stat.present : 0,
+                absent: stat ? (stat.total - stat.present) : 0
+            };
+        });
+
+        res.json({ date, day, periods: result });
+    } catch (error) {
+        console.error('getLive Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
 }
 
 module.exports = { getSession, getStudents, markAttendance, getLive };

@@ -1,23 +1,30 @@
 const bcrypt = require('bcryptjs');
-const { initializeDatabase, getDb } = require('../config/database');
+const { db } = require('../config/firebase');
 
 async function seed() {
-    await initializeDatabase();
-    const db = getDb();
+    console.log('Seeding Firestore Database with Admin SDK...');
 
-    console.log('Seeding Database...');
+    const collections = ['users', 'students', 'subjects', 'timetable', 'attendance', 'audit_logs'];
 
-    // 1. Clear Data
-    db.exec('DELETE FROM audit_logs; DELETE FROM attendance; DELETE FROM timetable; DELETE FROM subjects; DELETE FROM students; DELETE FROM users;');
+    // 1. Clear Collections
+    for (const colName of collections) {
+        const querySnapshot = await db.collection(colName).get();
+        const batch = db.batch();
+        querySnapshot.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        console.log(`Cleared collection: ${colName}`);
+    }
 
-    // 2. Users
+    // 2. Users - Use username as ID
     const users = [
         { username: 'bvricebca12', password: bcrypt.hashSync('bvricebca12', 10), role: 'admin', name: 'Admin' }
     ];
-    users.forEach(u => db.prepare('INSERT INTO users (username, password, role, name) VALUES (?,?,?,?)').run(u.username, u.password, u.role, u.name));
+    for (const u of users) {
+        await db.collection('users').doc(u.username).set(u);
+    }
     console.log('Users seeded.');
 
-    // 3. Subjects (From Timetable)
+    // 3. Subjects - Use code as ID
     const subjects = [
         { code: 'SANS', name: 'Sanskrit' },
         { code: 'AI-T', name: 'Artificial Intelligence (Theory)' },
@@ -32,18 +39,12 @@ async function seed() {
         { code: 'IKS', name: 'IKS' }
     ];
 
-    subjects.forEach(s => {
-        db.prepare('INSERT INTO subjects (code, name, type) VALUES (?,?,?)').run(s.code, s.name, 'theory');
+    for (const s of subjects) {
+        await db.collection('subjects').doc(s.code).set({ ...s, type: 'theory' });
         console.log(`- Seeded subject: ${s.name} (${s.code})`);
-    });
+    }
 
-    // Helper to get Subject ID
-    const getSubId = (code) => {
-        const res = db.prepare('SELECT id FROM subjects WHERE code = ?').get(code);
-        return res ? res.id : null;
-    };
-
-    // 4. Timetable (Verified with User)
+    // 4. Timetable
     const timetable = {
         'Monday': ['SANS', 'AI-T', 'DBMS-T', 'DSC-T', 'AI-L', 'AI-L', 'LAB'],
         'Tuesday': ['ENG', 'AOC', 'SANS', 'ISW', 'AI-T', 'DBMS-T', 'DSC-T'],
@@ -53,21 +54,27 @@ async function seed() {
         'Saturday': ['ISW', 'DBMS-T', 'SANS', 'AI-T', 'ENG', 'DSC-T', 'DBMS-T']
     };
 
-    Object.entries(timetable).forEach(([day, codes]) => {
+    for (const [day, codes] of Object.entries(timetable)) {
         console.log(`Seeding timetable for ${day}...`);
-        codes.forEach((code, index) => {
+        for (const [index, code] of codes.entries()) {
             const period = index + 1;
-            const subId = getSubId(code);
-            if (subId) {
-                db.prepare('INSERT INTO timetable (day, period, subject_id) VALUES (?,?,?)').run(day, period, subId);
+            const subject = subjects.find(s => s.code === code);
+            if (subject) {
+                await db.collection('timetable').add({
+                    day,
+                    period,
+                    subject_id: code,
+                    subject_name: subject.name,
+                    subject_code: code
+                });
             } else {
                 console.error(`!!! Subject not found for code: ${code}`);
             }
-        });
-    });
+        }
+    }
     console.log('Timetable seeding complete.');
 
-    // 5. Students (Full Class List from Image)
+    // 5. Students - Use roll_no as ID
     const students = [
         { r: '253110101001', n: 'ADADA NAVYA SRI RUPINI', g: 'FEMALE' },
         { r: '253110101002', n: 'AMUDALAPALLI PAVAN MANIKANTA PURNA', g: 'MALE' },
@@ -135,9 +142,13 @@ async function seed() {
         { r: '253110101064', n: 'YALAMANCHILI POOJITHA KOUSALYA', g: 'FEMALE' }
     ];
 
-    students.forEach((s) => {
-        db.prepare('INSERT INTO students (roll_no, name, gender) VALUES (?,?,?)').run(s.r, s.n, s.g);
-    });
+    for (const s of students) {
+        await db.collection('students').doc(s.r).set({
+            roll_no: s.r,
+            name: s.n,
+            gender: s.g
+        });
+    }
     console.log('Students seeded.');
 }
 
