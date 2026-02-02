@@ -4,9 +4,16 @@ import axios from 'axios';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    // Force logged in state
+    const [user, setUser] = useState({
+        id: 'mock_admin_id',
+        role: 'admin',
+        name: 'Dev Admin'
+    });
+    const [loading, setLoading] = useState(false);
 
+    // Disable auth check for now
+    /*
     useEffect(() => {
         const checkAuth = async () => {
             const token = localStorage.getItem('token');
@@ -24,23 +31,22 @@ export const AuthProvider = ({ children }) => {
         };
         checkAuth();
     }, []);
+    */
 
     const login = async (username, password) => {
-        const res = await axios.post('/api/auth/login', { username, password });
-        localStorage.setItem('token', res.data.token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
-        setUser(res.data.user);
-        return res.data.user;
+        // Mock login
+        const mockUser = { id: 'mock_admin_id', role: 'admin', name: 'Dev Admin' };
+        setUser(mockUser);
+        return mockUser;
     };
 
     const logout = () => {
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
-        setUser(null);
+        // Do nothing or maybe reset but for now we want perma-login
+        console.log("Logout disabled in dev mode");
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading, isAuthenticated: !!user }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, isAuthenticated: true }}>
             {children}
         </AuthContext.Provider>
     );
