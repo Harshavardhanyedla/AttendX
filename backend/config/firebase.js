@@ -18,41 +18,37 @@ function getFirebase() {
         let project = process.env.FIREBASE_PROJECT_ID;
 
         if (pk && email && project) {
+            // Clean quotes
             const clean = (val) => (val || '').trim().replace(/^["']|["']$/g, '');
             pk = clean(pk);
             email = clean(email);
             project = clean(project);
 
-            // Handle accidental JSON copy-paste
+            // Handle accidental JSON format
             if (pk.startsWith('{')) {
                 try {
                     const parsed = JSON.parse(pk);
                     if (parsed.private_key) pk = parsed.private_key;
-                } catch (e) {
-                    // ignore
+                } catch (e) { }
+            }
+
+            // Universal Fixer: Extract *only* the valid key part
+            // This ignores any trailing/leading garbage that causes "Unparsed DER bytes"
+            if (pk.includes('-----BEGIN PRIVATE KEY-----') && pk.includes('-----END PRIVATE KEY-----')) {
+                // Replace literal \n with spaces first to treat as one block, or just standardizer
+                // Actually, best is to just standardise newlines first
+                pk = pk.replace(/\\n/g, '\n');
+
+                // Regex to find the core content
+                const match = pk.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/);
+                if (match) {
+                    // Reassemble cleanly
+                    let body = match[1].replace(/\s/g, ''); // Remove ALL whitespace from body
+                    // Split body into 64-char chunks (standard PEM)
+                    body = body.match(/.{1,64}/g).join('\n');
+                    pk = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----\n`;
                 }
-            }
-
-            // Universal Newline Fixer
-            // 1. Replace literal "\n" strings with real newlines
-            pk = pk.replace(/\\n/g, '\n');
-
-            // 2. Ensure headers have adjacent newlines (fix one-liner paste)
-            if (!pk.includes('\n')) {
-                // Aggressive: It's a one-liner. Try to split by header/footer.
-                pk = pk.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n');
-                pk = pk.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
-
-                // If that didn't create newlines, maybe it's space-separated?
-                // (Rare, but let's try to fix standard spacing if headers are fixed)
-                pk = pk.replace(/ ([A-Za-z0-9+/=]{64}) /g, '\n$1\n');
-            }
-
-            // 3. One last cleanup to ensure clean headers
-            pk = pk.replace(/-----BEGIN PRIVATE KEY-----\s*/, '-----BEGIN PRIVATE KEY-----\n');
-            pk = pk.replace(/\s*-----END PRIVATE KEY-----/, '\n-----END PRIVATE KEY-----');
-
-            if (!pk.includes('-----BEGIN PRIVATE KEY-----')) {
+            } else {
                 throw new Error("Private Key is missing '-----BEGIN PRIVATE KEY-----' header.");
             }
 
@@ -64,8 +60,6 @@ function getFirebase() {
         } else {
             // Local fallback
             const localKeyPath = '/Users/yadlaharshavardhan/Downloads/attendx-e5fbd-firebase-adminsdk-fbsvc-9e6b2d8648.json';
-
-            // Allow override via path env var (e.g. for Render/others)
             const pathEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
             const finalPath = pathEnv && fs.existsSync(pathEnv) ? pathEnv : localKeyPath;
 
@@ -77,7 +71,6 @@ function getFirebase() {
         }
 
         if (credential) {
-            // Check if already initialized to avoid duplicate app errors
             if (!_admin.apps.length) {
                 _admin.initializeApp({ credential });
             }
