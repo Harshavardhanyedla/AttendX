@@ -1,6 +1,8 @@
 module.exports = async (req, res) => {
     if (req.url === '/api/ping') {
-        return res.json({ status: 'pong', time: new Date().toISOString() });
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ status: 'pong', time: new Date().toISOString() }));
+        return;
     }
 
     try {
