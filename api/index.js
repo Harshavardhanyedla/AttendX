@@ -1,19 +1,18 @@
-const app = require('../backend/server');
-
 module.exports = async (req, res) => {
-    console.log(`Request received: ${req.method} ${req.url}`);
+    if (req.url === '/api/ping') {
+        return res.json({ status: 'pong', time: new Date().toISOString() });
+    }
+
     try {
-        // Ensure app is loaded
-        if (!app) {
-            throw new Error("Express app failed to load.");
-        }
+        const app = require('../backend/server');
+        if (!app) throw new Error("App failed to load");
         return app(req, res);
     } catch (error) {
-        console.error('VERCEL_CRASH:', error);
+        console.error('VERCEL_GLOBAL_CRASH:', error);
         res.status(500).json({
-            error: 'Backend Crash',
+            error: 'Server Initialization Failed',
             message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            stack: error.stack
         });
     }
 };

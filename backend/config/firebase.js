@@ -1,30 +1,36 @@
-require('dotenv').config();
 const fs = require('fs');
 
-let _db;
 let _admin;
+let _db;
 
 function getFirebase() {
     if (_admin) return { db: _db, admin: _admin };
 
     try {
         _admin = require('firebase-admin');
-        let credential;
 
+        let credential;
         const localKeyPath = '/Users/yadlaharshavardhan/Downloads/attendx-e5fbd-firebase-adminsdk-fbsvc-9e6b2d8648.json';
 
         if (fs.existsSync(localKeyPath)) {
-            console.log("Firebase: Local JSON found.");
+            console.log("Firebase: Using local JSON.");
             credential = _admin.credential.cert(localKeyPath);
         } else if (process.env.FIREBASE_PRIVATE_KEY) {
-            console.log("Firebase: Using Env Vars.");
+            console.log("Firebase: Initializing from Env Vars.");
 
-            let pk = process.env.FIREBASE_PRIVATE_KEY.trim().replace(/^["']|["']$/g, '');
-            // Support both literal \n and actual newlines
+            // Extreme cleaning of keys
+            const clean = (val) => (val || '').trim().replace(/^["']|["']$/g, '');
+
+            let pk = clean(process.env.FIREBASE_PRIVATE_KEY);
+            // Handle escaped newlines
             pk = pk.split('\\n').join('\n');
 
-            const email = (process.env.FIREBASE_CLIENT_EMAIL || '').trim().replace(/^["']|["']$/g, '');
-            const project = (process.env.FIREBASE_PROJECT_ID || '').trim().replace(/^["']|["']$/g, '');
+            const email = clean(process.env.FIREBASE_CLIENT_EMAIL);
+            const project = clean(process.env.FIREBASE_PROJECT_ID);
+
+            if (!pk.includes('-----BEGIN PRIVATE KEY-----')) {
+                throw new Error("Private Key missing header. Check your Vercel Env Vars.");
+            }
 
             credential = _admin.credential.cert({
                 projectId: project,
@@ -36,13 +42,14 @@ function getFirebase() {
         if (credential) {
             _admin.initializeApp({ credential });
             _db = _admin.firestore();
-            console.log("Firebase: Success.");
         } else {
-            console.error("Firebase: No credentials.");
+            console.warn("Firebase: No credentials found. App will run in limited mode.");
         }
     } catch (err) {
-        console.error("Firebase Init Crash:", err.message);
+        console.error("FIREBASE_INIT_CRASH:", err.message);
+        // Do not rethrow, let the app start so we can see the ping
     }
+
     return { db: _db, admin: _admin };
 }
 
