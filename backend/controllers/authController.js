@@ -37,7 +37,11 @@ exports.login = async (req, res) => {
         });
     } catch (error) {
         console.error('Login Exception:', error);
-        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+        const isDbError = error.message.includes('Firestore is not initialized');
+        res.status(500).json({
+            error: isDbError ? 'Database Connection Failed' : 'Internal Server Error',
+            details: error.message
+        });
     }
 };
 
