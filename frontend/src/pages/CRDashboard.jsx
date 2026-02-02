@@ -67,9 +67,10 @@ export default function CRDashboard() {
             } else {
                 setStudents([]);
             }
-        } catch (err) {
+
             console.error(err);
-            setMsg('Error loading data');
+            const errorText = err.response?.data?.details || err.response?.data?.error || err.message || 'Error loading data';
+            setMsg('Error: ' + errorText);
         } finally {
             setLoading(false);
         }
