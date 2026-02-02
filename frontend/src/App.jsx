@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
-import Login from './pages/Login'; // Kept generic import but won't use route
+// import Login from './pages/Login'; // Deleted
 import CRDashboard from './pages/CRDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 
