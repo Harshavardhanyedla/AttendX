@@ -23,8 +23,19 @@ function getFirebase() {
             email = clean(email);
             project = clean(project);
 
-            // Handle newlines
-            pk = pk.replace(/\\n/g, '\n');
+            // AGGRESSIVE KEY REPAIR
+            // 1. Convert literal \n to real newlines
+            // 2. Ensure headers are clean
+            if (!pk.includes('\n') && pk.includes('\\n')) {
+                pk = pk.replace(/\\n/g, '\n');
+            }
+
+            // Sometimes copy-paste results in spaces instead of newlines for the header/footer
+            pk = pk.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n');
+            pk = pk.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+
+            // Remove double newlines if we created them
+            pk = pk.replace(/\n\n/g, '\n');
 
             if (!pk.includes('-----BEGIN PRIVATE KEY-----')) {
                 throw new Error("Private Key is missing '-----BEGIN PRIVATE KEY-----' header.");
