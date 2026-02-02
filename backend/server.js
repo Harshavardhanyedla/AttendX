@@ -13,7 +13,7 @@ app.get('/api/test', (req, res) => res.json({ message: 'Server is loading correc
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/attendance', require('./routes/attendance'));
-// app.use('/api/reports', require('./routes/reports'));
+app.use('/api/reports', require('./routes/reports'));
 
 // Export app for Vercel
 module.exports = app;
