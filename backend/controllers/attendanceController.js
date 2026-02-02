@@ -105,7 +105,9 @@ async function getStudents(req, res) {
  */
 async function markAttendance(req, res) {
     try {
-        const { date, period, subject_id, records } = req.body;
+        const { date, period, subject_id, records: reqRecords, attendance: reqAttendance } = req.body;
+        const records = reqRecords || reqAttendance;
+
         if (!date || !period || !records || !Array.isArray(records)) {
             return res.status(400).json({ error: 'Invalid data' });
         }
