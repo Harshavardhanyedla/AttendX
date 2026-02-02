@@ -55,8 +55,13 @@ async function getSession(req, res) {
             isMarked
         });
     } catch (error) {
+
         console.error('getSession Error:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({
+            error: 'Internal Server Error',
+            details: error.message,
+            stack: error.stack
+        });
     }
 }
 
