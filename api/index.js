@@ -8,47 +8,29 @@ module.exports = async (req, res) => {
         return;
     }
 
-    // 2. DEBUG Check - Test dependencies one by one
-    if (req.url === '/api/debug') {
-        const steps = [];
+    // 2. DEBUG Env - Check if variables exist (SAFE)
+    if (req.url === '/api/debug-env') {
         try {
-            steps.push("Starting Debug");
+            const pk = process.env.FIREBASE_PRIVATE_KEY || '';
+            const email = process.env.FIREBASE_CLIENT_EMAIL || '';
+            const project = process.env.FIREBASE_PROJECT_ID || '';
 
-            steps.push("Loading bcryptjs...");
-            const bcrypt = require('bcryptjs');
-            steps.push("bcryptjs loaded");
-
-            steps.push("Loading jsonwebtoken...");
-            const jwt = require('jsonwebtoken');
-            steps.push("jsonwebtoken loaded");
-
-            steps.push("Loading firebase-admin...");
-            const admin = require('firebase-admin');
-            steps.push("firebase-admin loaded");
-
-            steps.push("Loading local firebase config...");
-            const { db } = require('../backend/config/firebase');
-            steps.push("firebase config loaded");
-
-            steps.push("Checking Firestore connection...");
-            if (db) {
-                steps.push("Firestore object exists");
-                // Don't actually query to avoid timeout, just check object
-            } else {
-                steps.push("Firestore object is NULL");
-            }
-
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ status: 'success', steps }));
-            return;
-        } catch (error) {
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({
-                status: 'failed',
-                steps,
-                error: error.message,
-                stack: error.stack
+                status: 'success',
+                env: {
+                    project: project,
+                    email: email,
+                    privateKeyLength: pk.length,
+                    privateKeyStart: pk.substring(0, 10),
+                    privateKeyHasNewline: pk.includes('\n'),
+                    privateKeyHasEscapedNewline: pk.includes('\\n'),
+                    privateKeyHasBegin: pk.includes('BEGIN PRIVATE KEY')
+                }
             }));
+            return;
+        } catch (error) {
+            res.end(JSON.stringify({ error: error.message }));
             return;
         }
     }
