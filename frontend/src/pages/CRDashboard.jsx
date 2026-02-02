@@ -70,8 +70,12 @@ export default function CRDashboard() {
 
         } catch (err) {
             console.error(err);
-            const errorText = err.response?.data?.details || err.response?.data?.error || err.message || 'Error loading data';
-            setMsg('Error: ' + errorText);
+            const res = err.response?.data || {};
+            const errorText = res.message || res.details || res.firebaseError || res.error || err.message || 'Error loading data';
+            setMsg('Debug Error: ' + errorText);
+            if (res.envDebug) {
+                console.log("Env Debug Info:", res.envDebug);
+            }
         } finally {
             setLoading(false);
         }
