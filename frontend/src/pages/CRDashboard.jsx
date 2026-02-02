@@ -158,6 +158,7 @@ export default function CRDashboard() {
                 </div>
 
                 {session?.message && <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '0.5rem', marginTop: '1rem' }}>{session.message}</div>}
+                {msg && <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '0.5rem', marginTop: '1rem' }}>Debug Error: {msg}</div>}
 
                 {session?.subject && (
                     <div style={{ marginTop: '1rem' }}>
