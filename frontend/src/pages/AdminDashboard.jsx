@@ -37,7 +37,7 @@ export default function AdminDashboard() {
 
     const downloadReport = async () => {
         try {
-            const res = await axios.get(`/api/report/monthly?month=${reportMonth}`, { responseType: 'blob' });
+            const res = await axios.get(`/api/reports/monthly?month=${reportMonth}`, { responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
