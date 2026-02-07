@@ -76,23 +76,11 @@ export default function AdminDashboard() {
         }
     };
 
-    const handleSync = async () => {
-        if (!window.confirm('This will reset all attendance data and re-sync the timetable. Continue?')) return;
-        try {
-            await axios.post('/api/auth/seed');
-            alert('Schedule synced successfully!');
-            loadLive();
-        } catch (err) {
-            alert('Sync failed: ' + err.message);
-        }
-    };
-
     return (
         <div className="container">
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
                 <h1>Admin Dashboard</h1>
                 <div className="flex gap-2">
-                    <button onClick={handleSync} className="btn" style={{ background: '#f3f4f6' }}>🔄 Sync Schedule</button>
                     <button onClick={logout} className="btn btn-danger">Logout</button>
                 </div>
             </div>
