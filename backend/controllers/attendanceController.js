@@ -117,6 +117,17 @@ async function markAttendance(req, res) {
             return res.status(400).json({ error: 'Invalid data' });
         }
 
+        // Check if attendance already exists
+        const existingSnapshot = await db.collection("attendance")
+            .where("date", "==", date)
+            .where("period", "==", parseInt(period))
+            .limit(1)
+            .get();
+
+        if (!existingSnapshot.empty) {
+            return res.status(409).json({ error: 'Attendance already marked for this period.' });
+        }
+
         const userId = req.user.id;
 
         // Fetch subject name for denormalization

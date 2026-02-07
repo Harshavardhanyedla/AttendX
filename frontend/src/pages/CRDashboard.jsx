@@ -173,6 +173,12 @@ export default function CRDashboard() {
                     </div>
                 )}
 
+                {session?.isMarked && (
+                    <div style={{ padding: '1rem', background: '#dbeafe', color: '#1e40af', borderRadius: '0.5rem', marginTop: '1rem', fontWeight: 'bold' }}>
+                        Attendance for this period has already been submitted and cannot be edited.
+                    </div>
+                )}
+
                 {loading && <div style={{ textAlign: 'center', padding: '1rem' }}>Loading data...</div>}
 
                 {!loading && !session?.subject && !session?.message && (
@@ -202,7 +208,8 @@ export default function CRDashboard() {
                                     background: attendance[s.id] === 'present' ? '#ecfdf5' : attendance[s.id] === 'absent' ? '#fef2f2' : '#ffffff',
                                     borderColor: attendance[s.id] === 'present' ? '#10b981' : attendance[s.id] === 'absent' ? '#ef4444' : '#e5e7eb',
                                     boxShadow: attendance[s.id] ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                                    transition: 'all 0.2s'
+                                    transition: 'all 0.2s',
+                                    opacity: session?.isMarked ? 0.7 : 1
                                 }}
                             >
                                 <div style={{ fontWeight: 'bold' }}>{s.roll_no}</div>
@@ -211,13 +218,14 @@ export default function CRDashboard() {
                                 <div className="flex gap-2" style={{ marginTop: '0.5rem' }}>
                                     <button
                                         onClick={() => setStatus(s.id, 'present')}
+                                        disabled={session?.isMarked}
                                         style={{
                                             flex: 1,
                                             padding: '0.4rem',
                                             borderRadius: '0.25rem',
                                             fontSize: '0.7rem',
                                             fontWeight: 'bold',
-                                            cursor: 'pointer',
+                                            cursor: session?.isMarked ? 'not-allowed' : 'pointer',
                                             background: attendance[s.id] === 'present' ? '#10b981' : '#f3f4f6',
                                             color: attendance[s.id] === 'present' ? 'white' : '#4b5563',
                                             border: '1px solid',
@@ -228,13 +236,14 @@ export default function CRDashboard() {
                                     </button>
                                     <button
                                         onClick={() => setStatus(s.id, 'absent')}
+                                        disabled={session?.isMarked}
                                         style={{
                                             flex: 1,
                                             padding: '0.4rem',
                                             borderRadius: '0.25rem',
                                             fontSize: '0.7rem',
                                             fontWeight: 'bold',
-                                            cursor: 'pointer',
+                                            cursor: session?.isMarked ? 'not-allowed' : 'pointer',
                                             background: attendance[s.id] === 'absent' ? '#ef4444' : '#f3f4f6',
                                             color: attendance[s.id] === 'absent' ? 'white' : '#4b5563',
                                             border: '1px solid',
@@ -248,12 +257,14 @@ export default function CRDashboard() {
                         ))}
                     </div>
 
-                    <div style={{ marginTop: '2rem' }}>
-                        <button onClick={submit} className="btn btn-primary" style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}>
-                            SAVE ATTENDANCE
-                        </button>
-                        {msg && <div style={{ textAlign: 'center', marginTop: '1rem', fontWeight: 'bold' }}>{msg}</div>}
-                    </div>
+                    {!session?.isMarked && (
+                        <div style={{ marginTop: '2rem' }}>
+                            <button onClick={submit} className="btn btn-primary" style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}>
+                                SAVE ATTENDANCE
+                            </button>
+                            {msg && <div style={{ textAlign: 'center', marginTop: '1rem', fontWeight: 'bold' }}>{msg}</div>}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
