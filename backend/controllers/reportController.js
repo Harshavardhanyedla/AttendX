@@ -476,5 +476,93 @@ module.exports = {
     getSubjectReport,
     downloadPeriodPDF,
     downloadDailyPDF,
-    downloadStudentPDF
+    downloadStudentPDF,
+    getMonthlyReport
 };
+
+/**
+ * Download Monthly Attendance Report (CSV)
+ */
+async function getMonthlyReport(req, res) {
+    try {
+        const { month } = req.query; // YYYY-MM
+
+        if (!month) {
+            return res.status(400).json({ error: 'Month is required (YYYY-MM)' });
+        }
+
+        const [year, monthNum] = month.split('-');
+        const startDate = `${month}-01`;
+
+        // Calculate end date of month
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const endDate = `${month}-${lastDay}`;
+
+        console.log(`Generating report for ${startDate} to ${endDate}`);
+
+        // 1. Get all students
+        const studentSnapshot = await db.collection("students").orderBy("roll_no").get();
+        const students = studentSnapshot.docs.map(doc => doc.data());
+
+        // 2. Get attendance for the month
+        const attendanceSnapshot = await db.collection("attendance")
+            .where("date", ">=", startDate)
+            .where("date", "<=", endDate)
+            .get();
+
+        const attendanceRecords = attendanceSnapshot.docs.map(doc => doc.data());
+
+        // 3. Process aggregation
+        // Map: StudentRoll -> { present: 0 }
+        const studentStats = {};
+
+        // Initialize
+        students.forEach(s => {
+            studentStats[s.roll_no] = {
+                name: s.name,
+                roll_no: s.roll_no,
+                present: 0,
+                total_conducted: 0 // We need to know how many periods actually happened?
+            };
+        });
+
+        // We need to count "Unique Periods Conducted" in this month to calculate percentage accurately?
+        // OR does "Total" mean "Total periods user was marked for"?
+        // Usually, Total = Sum of all distinct (Date, Period) pairs recorded in the system.
+        // Let's find all unique (Date, Period) tuples that exist in attendanceRecords
+        const uniquePeriods = new Set();
+        attendanceRecords.forEach(r => {
+            uniquePeriods.add(`${r.date}_${r.period}`);
+        });
+        const totalConducted = uniquePeriods.size;
+
+        // Count presents per student
+        attendanceRecords.forEach(r => {
+            if (studentStats[r.student_id]) {
+                // If student was marked 'present', increment
+                if (r.status === 'present') {
+                    studentStats[r.student_id].present++;
+                }
+            }
+        });
+
+        // 4. Generate CSV
+        let csv = 'Roll Number,Name,Total Periods Conducted,attended Periods,Attendance Percentage\n';
+
+        students.forEach(s => {
+            const stat = studentStats[s.roll_no];
+            const attended = stat.present;
+            const percentage = totalConducted > 0 ? ((attended / totalConducted) * 100).toFixed(2) : '0.00';
+
+            csv += `${s.roll_no},"${s.name}",${totalConducted},${attended},${percentage}%\n`;
+        });
+
+        res.header('Content-Type', 'text/csv');
+        res.attachment(`Attendance_Report_${month}.csv`);
+        res.send(csv);
+
+    } catch (error) {
+        console.error('Monthly report error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}

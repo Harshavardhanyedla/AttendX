@@ -32,6 +32,25 @@ export default function AdminDashboard() {
         }
     };
 
+    // Report State
+    const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+
+    const downloadReport = async () => {
+        try {
+            const res = await axios.get(`/api/report/monthly?month=${reportMonth}`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Attendance_Report_${reportMonth}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to download report');
+        }
+    };
+
     useEffect(() => {
         loadLive();
     }, []);
@@ -169,6 +188,25 @@ export default function AdminDashboard() {
                         )}
                     </div>
                 )}
+            </div>
+
+            <div className="card" style={{ marginTop: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2>Monthly Report</h2>
+                    <span style={{ fontSize: '0.8rem', background: '#dbeafe', color: '#1e40af', padding: '0.25rem 0.5rem', borderRadius: '1rem' }}>Export</span>
+                </div>
+                <div className="flex gap-4" style={{ marginBottom: '1rem', alignItems: 'flex-end', marginTop: '1rem' }}>
+                    <div>
+                        <label className="label">Select Month</label>
+                        <input type="month" className="input" value={reportMonth} onChange={e => setReportMonth(e.target.value)} />
+                    </div>
+                    <button onClick={downloadReport} className="btn btn-primary">
+                        📥 Download Monthly Report (CSV)
+                    </button>
+                </div>
+                <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>
+                    Downloads a CSV file containing attendance percentage for all students for the selected month.
+                </p>
             </div>
 
             <div className="card" style={{ marginTop: '2rem' }}>

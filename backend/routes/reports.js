@@ -8,7 +8,8 @@ const {
     getSubjectReport,
     downloadPeriodPDF,
     downloadDailyPDF,
-    downloadStudentPDF
+    downloadStudentPDF,
+    getMonthlyReport
 } = require('../controllers/reportController');
 
 // All routes require authentication and admin access
@@ -20,6 +21,7 @@ router.get('/period', getPeriodReport);
 router.get('/daily', getDailyReport);
 router.get('/student', getStudentReport);
 router.get('/subject', getSubjectReport);
+router.get('/monthly', getMonthlyReport);
 
 // PDF download endpoints
 router.get('/download/period', downloadPeriodPDF);
