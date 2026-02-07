@@ -150,10 +150,10 @@ export default function CRDashboard() {
             <div className="card">
                 <div className="flex gap-4" style={{ flexWrap: 'wrap' }}>
                     <div>
-                        <label className="label">Select Day</label>
-                        <select className="input" value={day} onChange={e => setDay(e.target.value)}>
-                            {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
+                        <label className="label">Day</label>
+                        <div className="input" style={{ background: '#f3f4f6', color: '#6b7280' }}>
+                            {day} ({new Date().toLocaleDateString()})
+                        </div>
                     </div>
                     <div>
                         <label className="label">Select Period</label>

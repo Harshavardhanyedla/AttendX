@@ -110,10 +110,17 @@ async function getStudents(req, res) {
  */
 async function markAttendance(req, res) {
     try {
-        const { date, period, subject_id, records: reqRecords, attendance: reqAttendance } = req.body;
+        const { period, subject_id, records: reqRecords, attendance: reqAttendance } = req.body;
         const records = reqRecords || reqAttendance;
 
-        if (!date || !period || !records || !Array.isArray(records)) {
+        // Force current date (Server Local Time)
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const date = `${year}-${month}-${day}`;
+
+        if (!period || !records || !Array.isArray(records)) {
             return res.status(400).json({ error: 'Invalid data' });
         }
 
