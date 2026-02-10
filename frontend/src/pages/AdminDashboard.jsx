@@ -76,6 +76,13 @@ export default function AdminDashboard() {
         }
     };
 
+    // Auto-load history when date or period changes
+    useEffect(() => {
+        if (viewDate && viewPeriod) {
+            loadHistory();
+        }
+    }, [viewDate, viewPeriod]);
+
     return (
         <div className="container">
             <h1 style={{ marginBottom: '2rem' }}>Admin Dashboard</h1>
@@ -121,30 +128,14 @@ export default function AdminDashboard() {
                     <span className="badge badge-danger">Admin Tool</span>
                 </div>
 
-                <div className="flex gap-4" style={{ marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '200px' }}>
+                <div className="flex gap-4" style={{ marginBottom: '1.5rem', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
                         <label className="label">Select Date</label>
                         <input type="date" className="input" value={bunkDate} onChange={e => setBunkDate(e.target.value)} />
                     </div>
-                    <div style={{ width: '100%' }}>
-                        <button
-                            onClick={loadBunking}
-                            className="btn btn-primary"
-                            disabled={bunkLoading}
-                            style={{
-                                background: 'var(--danger)',
-                                borderColor: 'var(--danger)',
-                                width: '100%',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}
-                        >
-                            {bunkLoading ? <span className="loading-spinner"></span> : '🔍'}
-                            {bunkLoading ? 'Analyzing...' : 'Find Partial Attendees'}
-                        </button>
-                    </div>
+                    <button onClick={loadBunking} className="btn btn-primary" disabled={bunkLoading} style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}>
+                        {bunkLoading ? 'Analyzing...' : '🔍 Find Partial Attendees'}
+                    </button>
                 </div>
 
                 {bunkData && (
@@ -194,26 +185,14 @@ export default function AdminDashboard() {
                     <h2>Monthly Report</h2>
                     <span className="badge badge-neutral">Export</span>
                 </div>
-                <div className="flex gap-4" style={{ marginBottom: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-                    <div style={{ flex: 1, minWidth: '200px' }}>
+                <div className="flex gap-4" style={{ marginBottom: '1rem', alignItems: 'flex-end', marginTop: '1rem' }}>
+                    <div style={{ flex: 1 }}>
                         <label className="label">Select Month</label>
                         <input type="month" className="input" value={reportMonth} onChange={e => setReportMonth(e.target.value)} />
                     </div>
-                    <div style={{ width: '100%' }}>
-                        <button
-                            onClick={downloadReport}
-                            className="btn btn-primary"
-                            style={{
-                                width: '100%',
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}
-                        >
-                            📥 Download Monthly Report (CSV)
-                        </button>
-                    </div>
+                    <button onClick={downloadReport} className="btn btn-primary">
+                        📥 Download Monthly Report (CSV)
+                    </button>
                 </div>
                 <p className="text-muted text-sm">
                     Downloads a CSV file containing attendance percentage for all students for the selected month.
@@ -253,12 +232,14 @@ export default function AdminDashboard() {
                             ))}
                         </div>
                     </div>
-                    <div style={{ width: '100%' }}>
-                        <button onClick={loadHistory} className="btn btn-primary" style={{ width: '100%' }}>View History</button>
-                    </div>
                 </div>
 
-                {historyData.length > 0 && (
+                {historyLoading ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        <span className="loading-spinner" style={{ borderTopColor: 'var(--primary)', borderRightColor: 'var(--primary)' }}></span>
+                        Loading data...
+                    </div>
+                ) : historyData.length > 0 ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
                         {historyData.map(s => (
                             <div key={s.id} style={{
@@ -277,6 +258,8 @@ export default function AdminDashboard() {
                             </div>
                         ))}
                     </div>
+                ) : (
+                    <div className="alert alert-info">No attendance data found for this period.</div>
                 )}
             </div>
         </div>
