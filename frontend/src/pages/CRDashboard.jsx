@@ -145,7 +145,7 @@ export default function CRDashboard() {
             <h1 style={{ marginBottom: '2rem' }}>CR Dashboard</h1>
 
             <div className="card">
-                <div className="flex gap-4" style={{ flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div className="flex gap-4" style={{ flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: '200px' }}>
                         <label className="label">Day</label>
                         <div className="input" style={{ background: 'var(--bg-color)', color: 'var(--text-muted)' }}>
