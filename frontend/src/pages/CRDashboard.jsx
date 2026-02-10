@@ -152,11 +152,31 @@ export default function CRDashboard() {
                             {day} ({new Date().toLocaleDateString()})
                         </div>
                     </div>
-                    <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
                         <label className="label">Select Period</label>
-                        <select className="input" value={period} onChange={e => setPeriod(parseInt(e.target.value))}>
-                            {PERIODS.map(p => <option key={p} value={p}>Period {p}</option>)}
-                        </select>
+                        <div className="flex gap-2" style={{ overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            {PERIODS.map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setPeriod(p)}
+                                    className="btn"
+                                    style={{
+                                        flex: '0 0 auto',
+                                        width: 'auto',
+                                        minWidth: '80px',
+                                        borderRadius: '2rem',
+                                        padding: '0.5rem 1rem',
+                                        background: period === p ? 'var(--primary)' : 'rgba(255,255,255,0.5)',
+                                        color: period === p ? '#fff' : 'var(--text-muted)',
+                                        border: period === p ? '1px solid var(--primary)' : '1px solid transparent',
+                                        boxShadow: period === p ? '0 4px 14px var(--primary-glow)' : 'none',
+                                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                    }}
+                                >
+                                    P{p}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
