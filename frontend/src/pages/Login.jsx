@@ -37,7 +37,7 @@ export default function Login() {
             <div className="login-card">
                 <div className="login-header">
                     <div className="login-logo">📋</div>
-                    <h1 className="login-title">ClassTrack</h1>
+                    <h1 className="login-title">AttendX</h1>
                     <p className="login-subtitle">Attendance Management System</p>
                 </div>
 

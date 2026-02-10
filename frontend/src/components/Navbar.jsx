@@ -5,7 +5,7 @@ export default function Navbar() {
 
     return (
         <nav className="navbar">
-            <div className="navbar-brand">ClassTrack</div>
+            <div className="navbar-brand">AttendX</div>
             <div className="flex gap-4">
                 <Link to="/cr" className={`nav-link ${location.pathname === '/cr' ? 'active' : ''}`}>
                     📝 Take Attendance
