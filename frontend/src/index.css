@@ -123,11 +123,7 @@ h1 {
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 1.5rem;
-    background: linear-gradient(to bottom, #09090b, #52525b);
-    /* Gradient Black/Grey */
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: inline-block;
+    color: var(--text-main);
 }
 
 h2 {
