@@ -194,18 +194,40 @@ export default function AdminDashboard() {
 
             <div className="card" style={{ marginTop: '2rem' }}>
                 <h2>View Attendance History</h2>
-                <div className="flex gap-4" style={{ marginBottom: '1.5rem', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1 }}>
+                <div className="flex gap-4" style={{ marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
                         <label className="label">Date</label>
                         <input type="date" className="input" value={viewDate} onChange={e => setViewDate(e.target.value)} />
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, width: '100%', minWidth: '100%', overflow: 'hidden' }}>
                         <label className="label">Period</label>
-                        <select className="input" value={viewPeriod} onChange={e => setViewPeriod(parseInt(e.target.value))}>
-                            {PERIODS.map(p => <option key={p} value={p}>Period {p}</option>)}
-                        </select>
+                        <div className="flex gap-2" style={{ overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                            {PERIODS.map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setViewPeriod(p)}
+                                    className="btn"
+                                    style={{
+                                        flex: '0 0 auto',
+                                        width: 'auto',
+                                        minWidth: '80px',
+                                        borderRadius: '2rem',
+                                        padding: '0.5rem 1rem',
+                                        background: viewPeriod === p ? 'var(--primary)' : 'rgba(255,255,255,0.5)',
+                                        color: viewPeriod === p ? '#fff' : 'var(--text-muted)',
+                                        border: viewPeriod === p ? '1px solid var(--primary)' : '1px solid transparent',
+                                        boxShadow: viewPeriod === p ? '0 4px 14px var(--primary-glow)' : 'none',
+                                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                    }}
+                                >
+                                    P{p}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    <button onClick={loadHistory} className="btn btn-primary">View</button>
+                    <div style={{ width: '100%' }}>
+                        <button onClick={loadHistory} className="btn btn-primary" style={{ width: '100%' }}>View History</button>
+                    </div>
                 </div>
 
                 {historyData.length > 0 && (
