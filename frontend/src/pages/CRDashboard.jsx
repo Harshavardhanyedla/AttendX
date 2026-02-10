@@ -142,10 +142,7 @@ export default function CRDashboard() {
 
     return (
         <div className="container">
-            <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
-                <h1>CR Dashboard</h1>
-                <button onClick={logout} className="btn btn-danger">Logout</button>
-            </div>
+            <h1 style={{ marginBottom: '2rem' }}>CR Dashboard</h1>
 
             <div className="card">
                 <div className="flex gap-4" style={{ flexWrap: 'wrap', alignItems: 'flex-end' }}>

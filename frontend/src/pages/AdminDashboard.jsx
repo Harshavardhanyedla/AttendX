@@ -78,12 +78,7 @@ export default function AdminDashboard() {
 
     return (
         <div className="container">
-            <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
-                <h1>Admin Dashboard</h1>
-                <div className="flex gap-2">
-                    <button onClick={logout} className="btn btn-danger">Logout</button>
-                </div>
-            </div>
+            <h1 style={{ marginBottom: '2rem' }}>Admin Dashboard</h1>
 
             <div className="card">
                 <h2>Live Monitor ({liveData?.date})</h2>
