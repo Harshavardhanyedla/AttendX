@@ -90,7 +90,7 @@ export default function Login() {
                     </button>
                 </form>
 
-                <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+                <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
                     <p>I BCA – 2nd Semester</p>
                 </div>
             </div>

@@ -148,14 +148,14 @@ export default function CRDashboard() {
             </div>
 
             <div className="card">
-                <div className="flex gap-4" style={{ flexWrap: 'wrap' }}>
-                    <div>
+                <div className="flex gap-4" style={{ flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
                         <label className="label">Day</label>
-                        <div className="input" style={{ background: '#f3f4f6', color: '#6b7280' }}>
+                        <div className="input" style={{ background: 'var(--bg-color)', color: 'var(--text-muted)' }}>
                             {day} ({new Date().toLocaleDateString()})
                         </div>
                     </div>
-                    <div>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
                         <label className="label">Select Period</label>
                         <select className="input" value={period} onChange={e => setPeriod(parseInt(e.target.value))}>
                             {PERIODS.map(p => <option key={p} value={p}>Period {p}</option>)}
@@ -163,38 +163,43 @@ export default function CRDashboard() {
                     </div>
                 </div>
 
-                {session?.message && <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '0.5rem', marginTop: '1rem' }}>{session.message}</div>}
-                {msg && <div style={{ padding: '1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '0.5rem', marginTop: '1rem' }}>Debug Error: {msg}</div>}
+                {session?.message && <div className="alert alert-danger">{session.message}</div>}
+                {msg && <div className="alert alert-info">{msg}</div>}
 
                 {session?.subject && (
-                    <div style={{ marginTop: '1rem' }}>
-                        <h2 className="text-xl font-bold text-indigo-600">Subject: {session.subject.name}</h2>
-                        <div className="text-sm text-gray-500">{getDateForDay(day)}</div>
+                    <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                        <h2 style={{ color: 'var(--primary)', marginBottom: '0.25rem' }}>{session.subject.name}</h2>
+                        <div className="text-muted text-sm">{getDateForDay(day)}</div>
                     </div>
                 )}
 
                 {session?.isMarked && (
-                    <div style={{ padding: '1rem', background: '#dbeafe', color: '#1e40af', borderRadius: '0.5rem', marginTop: '1rem', fontWeight: 'bold' }}>
+                    <div className="alert alert-info">
                         Attendance for this period has already been submitted and cannot be edited.
                     </div>
                 )}
 
-                {loading && <div style={{ textAlign: 'center', padding: '1rem' }}>Loading data...</div>}
+                {loading && (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        <span className="loading-spinner" style={{ borderTopColor: 'var(--primary)', borderRightColor: 'var(--primary)' }}></span>
+                        Loading data...
+                    </div>
+                )}
 
                 {!loading && !session?.subject && !session?.message && (
-                    <div style={{ padding: '1rem', background: '#fef3c7', color: '#92400e', borderRadius: '0.5rem', marginTop: '1rem' }}>
+                    <div className="alert alert-warning">
                         No subject assigned for {day} Period {period}. You can only take attendance for periods with assigned subjects.
                     </div>
                 )}
             </div>
 
             {session?.subject && !loading && (
-                <div className="card">
-                    <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+                <div className="card animate-fade-in">
+                    <div className="flex justify-between items-center" style={{ marginBottom: '1.5rem' }}>
                         <h2>Student List ({students.length})</h2>
                         <div className="flex gap-2">
-                            <span style={{ color: 'green' }}>P: {Object.values(attendance).filter(s => s === 'present').length}</span>
-                            <span style={{ color: 'red' }}>A: {Object.values(attendance).filter(s => s === 'absent').length}</span>
+                            <span className="badge badge-success">P: {Object.values(attendance).filter(s => s === 'present').length}</span>
+                            <span className="badge badge-danger">A: {Object.values(attendance).filter(s => s === 'absent').length}</span>
                         </div>
                     </div>
 
@@ -203,52 +208,31 @@ export default function CRDashboard() {
                             <div key={s.id}
                                 style={{
                                     padding: '1rem',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: '0.5rem',
-                                    background: attendance[s.id] === 'present' ? '#ecfdf5' : attendance[s.id] === 'absent' ? '#fef2f2' : '#ffffff',
-                                    borderColor: attendance[s.id] === 'present' ? '#10b981' : attendance[s.id] === 'absent' ? '#ef4444' : '#e5e7eb',
-                                    boxShadow: attendance[s.id] ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                    border: '1px solid',
+                                    borderColor: attendance[s.id] === 'present' ? 'var(--success)' : attendance[s.id] === 'absent' ? 'var(--danger)' : 'var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    background: attendance[s.id] === 'present' ? 'var(--success-soft)' : attendance[s.id] === 'absent' ? 'var(--danger-soft)' : 'var(--card-bg)',
                                     transition: 'all 0.2s',
                                     opacity: session?.isMarked ? 0.7 : 1
                                 }}
                             >
-                                <div style={{ fontWeight: 'bold' }}>{s.roll_no}</div>
-                                <div style={{ fontSize: '0.9rem', color: '#374151', minHeight: '2.5rem' }}>{s.name}</div>
+                                <div style={{ fontWeight: '700', marginBottom: '0.25rem' }}>{s.roll_no}</div>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', minHeight: '2.5rem', marginBottom: '0.5rem' }}>{s.name}</div>
 
-                                <div className="flex gap-2" style={{ marginTop: '0.5rem' }}>
+                                <div className="flex gap-2">
                                     <button
                                         onClick={() => setStatus(s.id, 'present')}
                                         disabled={session?.isMarked}
-                                        style={{
-                                            flex: 1,
-                                            padding: '0.4rem',
-                                            borderRadius: '0.25rem',
-                                            fontSize: '0.7rem',
-                                            fontWeight: 'bold',
-                                            cursor: session?.isMarked ? 'not-allowed' : 'pointer',
-                                            background: attendance[s.id] === 'present' ? '#10b981' : '#f3f4f6',
-                                            color: attendance[s.id] === 'present' ? 'white' : '#4b5563',
-                                            border: '1px solid',
-                                            borderColor: attendance[s.id] === 'present' ? '#059669' : '#d1d5db'
-                                        }}
+                                        className={`btn btn-sm ${attendance[s.id] === 'present' ? 'btn-success' : 'btn-outline-success'}`}
+                                        style={{ flex: 1 }}
                                     >
                                         PRESENT
                                     </button>
                                     <button
                                         onClick={() => setStatus(s.id, 'absent')}
                                         disabled={session?.isMarked}
-                                        style={{
-                                            flex: 1,
-                                            padding: '0.4rem',
-                                            borderRadius: '0.25rem',
-                                            fontSize: '0.7rem',
-                                            fontWeight: 'bold',
-                                            cursor: session?.isMarked ? 'not-allowed' : 'pointer',
-                                            background: attendance[s.id] === 'absent' ? '#ef4444' : '#f3f4f6',
-                                            color: attendance[s.id] === 'absent' ? 'white' : '#4b5563',
-                                            border: '1px solid',
-                                            borderColor: attendance[s.id] === 'absent' ? '#dc2626' : '#d1d5db'
-                                        }}
+                                        className={`btn btn-sm ${attendance[s.id] === 'absent' ? 'btn-danger' : 'btn-outline-danger'}`}
+                                        style={{ flex: 1 }}
                                     >
                                         ABSENT
                                     </button>
@@ -258,7 +242,7 @@ export default function CRDashboard() {
                     </div>
 
                     {!session?.isMarked && (
-                        <div style={{ marginTop: '2rem' }}>
+                        <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
                             <button onClick={submit} className="btn btn-primary" style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}>
                                 SAVE ATTENDANCE
                             </button>
