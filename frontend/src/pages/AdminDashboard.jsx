@@ -8,14 +8,21 @@ export default function AdminDashboard() {
     const { logout } = useAuth();
     const [liveData, setLiveData] = useState(null);
 
+    // Helper to get local date string YYYY-MM-DD
+    const getLocalToday = () => {
+        const d = new Date();
+        return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    };
+
     // History View State
-    const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
+    const [viewDate, setViewDate] = useState(getLocalToday());
     const [viewPeriod, setViewPeriod] = useState(1);
     const [historyData, setHistoryData] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState(null);
 
     // Partial Attendance State
-    const [bunkDate, setBunkDate] = useState(new Date().toISOString().split('T')[0]);
+    const [bunkDate, setBunkDate] = useState(getLocalToday());
     const [bunkData, setBunkData] = useState(null);
     const [bunkLoading, setBunkLoading] = useState(false);
 
@@ -66,11 +73,21 @@ export default function AdminDashboard() {
 
     const loadHistory = async () => {
         setHistoryLoading(true);
+        setHistoryError(null);
         try {
             const res = await axios.get(`/api/attendance/students?date=${viewDate}&period=${viewPeriod}`);
             setHistoryData(res.data.students);
         } catch (err) {
             console.error(err);
+            const data = err.response?.data || {};
+            const details = data.details || data.error || err.message;
+
+            if (details.includes('Quota exceeded')) {
+                setHistoryError('Daily Firebase Quota Exceeded. Site will resume tomorrow.');
+            } else {
+                setHistoryError('Failed to load data. Please check connection.');
+            }
+            setHistoryData([]);
         } finally {
             setHistoryLoading(false);
         }
@@ -233,6 +250,8 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 </div>
+
+                {historyError && <div className="alert alert-danger" style={{ marginBottom: '1rem' }}>{historyError}</div>}
 
                 {historyLoading ? (
                     <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>

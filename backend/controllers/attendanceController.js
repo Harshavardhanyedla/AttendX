@@ -1,4 +1,4 @@
-const { db } = require('../config/firebase');
+const { supabase } = require('../config/supabase');
 const { getCurrentDay, getCurrentPeriod, getPeriodTimeRange } = require('../utils/periodUtils');
 
 /**
@@ -23,44 +23,44 @@ async function getSession(req, res) {
         }
 
         // Get Subject from Timetable
-        const timetableSnapshot = await db.collection("timetable")
-            .where("day", "==", day)
-            .where("period", "==", period)
-            .get();
+        const { data: timetableEntry, error: tError } = await supabase
+            .from('timetable')
+            .select('*')
+            .eq('day', day)
+            .eq('period', period)
+            .maybeSingle();
 
-        if (timetableSnapshot.empty) {
+        if (tError || !timetableEntry) {
             return res.json({ day, period, message: 'Free Period (No subject assigned)' });
         }
 
-        const timetableEntry = timetableSnapshot.docs[0].data();
-
         // Check if attendance already marked
         const dateStr = now.toISOString().split('T')[0];
-        const attendanceSnapshot = await db.collection("attendance")
-            .where("date", "==", dateStr)
-            .where("period", "==", period)
-            .get();
+        const { data: attendance, error: aError } = await supabase
+            .from('attendance')
+            .select('id')
+            .eq('date', dateStr)
+            .eq('period', period)
+            .limit(1);
 
-        const isMarked = !attendanceSnapshot.empty;
+        const isMarked = attendance && attendance.length > 0;
 
         res.json({
             day,
             period,
             timeRange: getPeriodTimeRange(period),
             subject: {
-                id: timetableEntry.subject_id,
+                id: timetableEntry.subject_code,
                 name: timetableEntry.subject_name,
                 code: timetableEntry.subject_code
             },
             isMarked
         });
     } catch (error) {
-
         console.error('getSession Error:', error);
         res.status(500).json({
             error: 'Internal Server Error',
-            details: error.message,
-            stack: error.stack
+            details: error.message
         });
     }
 }
@@ -73,30 +73,37 @@ async function getStudents(req, res) {
     try {
         const { date, period } = req.query;
 
-        const studentSnapshot = await db.collection("students").orderBy("roll_no").get();
-        const students = studentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const { data: students, error: sError } = await supabase
+            .from('students')
+            .select('*')
+            .order('roll_no');
+
+        if (sError) throw sError;
 
         if (date && period) {
-            const attendanceSnapshot = await db.collection("attendance")
-                .where("date", "==", date)
-                .where("period", "==", parseInt(period))
-                .get();
+            const { data: attendance, error: aError } = await supabase
+                .from('attendance')
+                .select('student_id, status')
+                .eq('date', date)
+                .eq('period', parseInt(period));
+
+            if (aError) throw aError;
 
             const statusMap = {};
-            attendanceSnapshot.docs.forEach(doc => {
-                const data = doc.data();
-                statusMap[data.student_id] = data.status;
+            attendance.forEach(record => {
+                statusMap[record.student_id] = record.status;
             });
 
             // Merge status
             const result = students.map(s => ({
                 ...s,
-                status: statusMap[s.id] || 'present'
+                id: s.roll_no,
+                status: statusMap[s.roll_no] || 'present'
             }));
             return res.json({ students: result });
         }
 
-        res.json({ students });
+        res.json({ students: students.map(s => ({ ...s, id: s.roll_no })) });
     } catch (error) {
         console.error('getStudents Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -106,66 +113,51 @@ async function getStudents(req, res) {
 /**
  * POST /mark
  * CR submits attendance.
- * Body: { date, period, subject_id, records: [{ studentId, status }] }
  */
 async function markAttendance(req, res) {
     try {
         const { period, subject_id, records: reqRecords, attendance: reqAttendance } = req.body;
         const records = reqRecords || reqAttendance;
 
-        // Force current date (Server Local Time)
         const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const date = `${year}-${month}-${day}`;
+        const date = now.toISOString().split('T')[0];
 
         if (!period || !records || !Array.isArray(records)) {
             return res.status(400).json({ error: 'Invalid data' });
         }
 
         // Check if attendance already exists
-        const existingSnapshot = await db.collection("attendance")
-            .where("date", "==", date)
-            .where("period", "==", parseInt(period))
-            .limit(1)
-            .get();
+        const { data: existing } = await supabase
+            .from('attendance')
+            .select('id')
+            .eq('date', date)
+            .eq('period', parseInt(period))
+            .limit(1);
 
-        if (!existingSnapshot.empty) {
-            return res.status(409).json({ error: 'Attendance already marked for this period.' });
+        if (existing && existing.length > 0) {
+            return res.status(409).json({ error: 'Attendance already marked.' });
         }
 
-        const userId = req.user.id;
+        const userId = req.user.id; // Corrected: username or id from token
 
-        // Fetch subject name for denormalization
-        const subjectDoc = await db.collection("subjects").doc(subject_id).get();
-        const subjectName = subjectDoc.exists ? subjectDoc.data().name : 'Unknown';
+        const attendanceData = records.map(r => ({
+            student_id: r.studentId,
+            date,
+            period: parseInt(period),
+            subject_code: subject_id,
+            status: r.status,
+            marked_by: userId
+        }));
 
-        let presentCount = 0;
-        const batch = db.batch();
+        const { error: insError } = await supabase.from('attendance').insert(attendanceData);
+        if (insError) throw insError;
 
-        records.forEach(r => {
-            if (r.status === 'present') presentCount++;
-            const docId = `${r.studentId}_${date}_${period}`;
-            const ref = db.collection("attendance").doc(docId);
-            batch.set(ref, {
-                student_id: r.studentId,
-                date,
-                period: parseInt(period),
-                subject_id,
-                subject_name: subjectName,
-                status: r.status,
-                marked_by: userId,
-                marked_at: new Date().toISOString()
-            });
-        });
-
-        await batch.commit();
+        const presentCount = records.filter(r => r.status === 'present').length;
 
         res.json({ message: 'Attendance saved', total: records.length, present: presentCount });
     } catch (error) {
         console.error('markAttendance Error:', error);
-        res.status(500).json({ error: 'Failed to save attendance' });
+        res.status(500).json({ error: 'Failed to save attendance', details: error.message });
     }
 }
 
@@ -175,25 +167,28 @@ async function markAttendance(req, res) {
  */
 async function getLive(req, res) {
     try {
-        const date = new Date().toISOString().split('T')[0];
-        const day = getCurrentDay(new Date());
+        const now = new Date();
+        const date = now.toISOString().split('T')[0];
+        const day = getCurrentDay(now);
 
-        // Get all periods for today from timetable
-        const periodsSnapshot = await db.collection("timetable")
-            .where("day", "==", day)
-            // .orderBy("period") // Removed to avoid index requirements
-            .get();
-        const periods = periodsSnapshot.docs
-            .map(d => d.data())
-            .sort((a, b) => a.period - b.period); // Sort in JS
+        // Get periods for today
+        const { data: periods, error: pError } = await supabase
+            .from('timetable')
+            .select('*')
+            .eq('day', day)
+            .order('period');
+
+        if (pError) throw pError;
 
         // Get attendance counts for today
-        const statsSnapshot = await db.collection("attendance")
-            .where("date", "==", date)
-            .get();
-        const records = statsSnapshot.docs.map(d => d.data());
+        const { data: records, error: aError } = await supabase
+            .from('attendance')
+            .select('period, status')
+            .eq('date', date);
 
-        // Process stats in JS
+        if (aError) throw aError;
+
+        // Process stats
         const statsMap = {};
         records.forEach(r => {
             if (!statsMap[r.period]) statsMap[r.period] = { total: 0, present: 0 };

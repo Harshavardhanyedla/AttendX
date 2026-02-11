@@ -1,29 +1,30 @@
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../middleware/authMiddleware');
-const { db } = require('../config/firebase');
+const { supabase } = require('../config/supabase');
 
 exports.login = async (req, res) => {
     try {
         const { username, password } = req.body;
-        console.log(`Login attempt for: ${username}`);
+        console.log(`Supabase Login attempt for: ${username}`);
 
         if (!username || !password) {
             return res.status(400).json({ message: 'Username and password required' });
         }
 
-        const userSnapshot = await db.collection("users").where("username", "==", username).get();
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', username)
+            .single();
 
-        if (userSnapshot.empty) {
-            console.warn(`Login failed: User '${username}' not found in Firestore.`);
+        if (error || !user) {
+            console.warn(`Login failed: User '${username}' not found in Supabase.`);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        const userDoc = userSnapshot.docs[0];
-        const user = { id: userDoc.id, ...userDoc.data() };
-
         console.log(`Found user: ${user.username}, comparing passwords...`);
 
-        const passMatch = bcrypt.compareSync(password, user.password);
+        const passMatch = bcrypt.compareSync(password, user.password || '');
 
         if (!passMatch) {
             console.warn(`Login failed: Password mismatch for user '${username}'.`);
@@ -32,14 +33,13 @@ exports.login = async (req, res) => {
 
         console.log(`Login successful for: ${username}`);
         res.json({
-            token: generateToken(user),
-            user: { id: user.id, role: user.role, name: user.name }
+            token: generateToken({ id: user.id || user.username, role: user.role }),
+            user: { id: user.id || user.username, role: user.role, name: user.name }
         });
     } catch (error) {
-        console.error('Login Exception:', error);
-        const isDbError = error.message.includes('Firestore is not initialized');
+        console.error('Supabase Login Exception:', error);
         res.status(500).json({
-            error: isDbError ? 'Database Connection Failed' : 'Internal Server Error',
+            error: 'Database Connection Failed',
             details: error.message
         });
     }
@@ -47,12 +47,15 @@ exports.login = async (req, res) => {
 
 exports.getMe = async (req, res) => {
     try {
-        const userDoc = await db.collection("users").doc(req.user.id).get();
-        if (!userDoc.exists) {
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('id, username, role, name')
+            .eq('id', req.user.id)
+            .single();
+
+        if (error || !user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        const user = { id: userDoc.id, ...userDoc.data() };
-        delete user.password;
         res.json({ user });
     } catch (error) {
         console.error('GetMe Error:', error);
